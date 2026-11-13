@@ -34,6 +34,9 @@
   const links = [['home', 'Overview', 'home'], ['players', 'Players', 'users'], ['matches', 'Matches', 'matches'], ['leaderboard', 'Leaderboard', 'trophy'], ['rivalries', 'Head-to-head', 'swords'], ['duels', 'Duels', 'crosshair'], ['analytics', 'Analytics', 'chart'], ['records', 'Records & awards', 'medal']];
   const colors = ['#2563eb', '#0891b2', '#ef4444', '#0d9488', '#e11d48', '#16a34a', '#d97706', '#0284c7'];
   const mapColors = { Mirage: '#7e684e', Inferno: '#755046', Ancient: '#426450', 'Dust 2': '#8d784d' };
+  const mapIcons = { mirage: 'de_mirage', inferno: 'de_inferno', ancient: 'de_ancient', dust2: 'de_dust2' };
+  const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+  let renderedRoute = '', entranceObserver = null, motionFrame = 0;
   let data = structuredClone(window.LAN_DATA), profiles = {}, roster = [], allRoster = [];
   let selectedPlayerId = '';
   let route = 'home', routeId = '', windowSize = 0, metric = 'rating', minMatches = 2, chartMetric = 'rating', playerQuery = '', matchMap = '', matchPage = 0, compareA = '', compareB = '', duelA = '', duelB = '';
@@ -51,7 +54,10 @@
     return '<span class="avatar ' + size + '" style="--avatar-color:' + profileColor(p) + '">' + (safeImage ? '<img src="' + image + '" alt="">' : esc(displayName(p).split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase())) + '</span>';
   };
   const playerLink = (p, detail = '') => '<div class="player-cell">' + avatar(p, 'sm') + '<div><a href="#player/' + esc(p.id) + '">' + esc(displayName(p)) + '</a>' + (detail ? '<small>' + esc(detail) + '</small>' : '') + '</div></div>';
-  const mapThumb = (map, cls = '') => '<div class="map-thumb ' + cls + '" style="--map-color:' + (mapColors[map] || '#58536d') + '"><span>' + esc(map === 'Dust 2' ? 'D2' : map.slice(0, 3).toUpperCase()) + '</span></div>';
+  const mapThumb = (map, cls = '') => {
+    const asset = mapIcons[C.key(map).replace(/^de_/, '').replace(/[\s_-]/g, '')];
+    return asset ? '<div class="map-thumb map-badge ' + cls + '" aria-hidden="true"><img src="assets/map-icons/' + asset + '.png" width="64" height="64" alt="" loading="lazy" decoding="async"></div>' : '<div class="map-thumb ' + cls + '" style="--map-color:' + (mapColors[map] || '#58536d') + '"><span>' + esc(map === 'Dust 2' ? 'D2' : map.slice(0, 3).toUpperCase()) + '</span></div>';
+  };
   const pill = (text, cls = '') => '<span class="pill ' + cls + '">' + esc(text) + '</span>';
   const btn = (text, href, ico = '', cls = '') => '<a class="btn ' + cls + '" href="' + href + '">' + (ico ? icon(ico) : '') + text + '</a>';
   const empty = (text = 'Not enough match data yet.', detail = '') => '<div class="empty">' + icon('target') + '<strong>' + esc(text) + '</strong>' + esc(detail) + '</div>';
@@ -73,10 +79,10 @@
   function lineChart(series, label, metricKey = 'rating') {
     const values = series.map(v => v.value), valid = values.filter(C.finite);
     if (valid.length < 2) return empty();
-    const low = Math.min(...valid) * .85, high = Math.max(...valid) * 1.1 || 1, w = 570, h = 155, x = i => 35 + i * 520 / Math.max(series.length - 1, 1), y = v => 125 - ((v - low) / (high - low || 1)) * 100;
+    const low = Math.min(...valid) * .85, high = Math.max(...valid) * 1.1 || 1, w = matchMedia('(max-width: 760px)').matches ? 320 : 570, h = 155, x = i => 35 + i * (w - 50) / Math.max(series.length - 1, 1), y = v => 125 - ((v - low) / (high - low || 1)) * 100;
     const segments = []; let segment = [];
     values.forEach((v, i) => { if (C.finite(v)) segment.push([x(i), y(v)]); else { if (segment.length) segments.push(segment); segment = []; } }); if (segment.length) segments.push(segment);
-    return '<svg class="chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(label) + '"><defs><linearGradient id="area-' + metricKey + '" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2563eb" stop-opacity=".17"/><stop offset="1" stop-color="#2563eb" stop-opacity="0"/></linearGradient></defs>' + [0, 1, 2, 3].map(i => { const v = low + (high - low) * i / 3, yy = y(v); return '<line x1="35" x2="555" y1="' + yy + '" y2="' + yy + '" stroke="#dce5f2" stroke-dasharray="3 5"/><text x="0" y="' + (yy + 3) + '">' + fmt(v, metricKey === 'rating' ? 1 : 0) + '</text>'; }).join('') + segments.map(points => '<path d="M' + points[0][0] + ' 127 L' + points.map(p => p.join(' ')).join(' L') + ' L' + points[points.length - 1][0] + ' 127Z" fill="url(#area-' + metricKey + ')"/><path d="M' + points.map(p => p.join(' ')).join(' L') + '" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linejoin="round"/>').join('') + series.map((p, i) => '<text x="' + x(i) + '" y="150" text-anchor="middle">' + esc(p.label || 'M' + (i + 1)) + '</text>' + (C.finite(p.value) ? '<circle cx="' + x(i) + '" cy="' + y(p.value) + '" r="3.4" fill="#ffffff" stroke="#2563eb" stroke-width="2"><title>' + esc(p.title || p.label) + ': ' + fmt(p.value, 2) + '</title></circle>' : '')).join('') + '</svg>';
+    return '<svg class="chart" viewBox="0 0 ' + w + ' ' + h + '" role="group" aria-label="' + esc(label) + '"><defs><linearGradient id="area-' + metricKey + '" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2563eb" stop-opacity=".17"/><stop offset="1" stop-color="#2563eb" stop-opacity="0"/></linearGradient></defs>' + [0, 1, 2, 3].map(i => { const v = low + (high - low) * i / 3, yy = y(v); return '<line x1="35" x2="' + (w - 15) + '" y1="' + yy + '" y2="' + yy + '" stroke="#2c3c53" stroke-dasharray="3 5"/><text x="0" y="' + (yy + 3) + '">' + fmt(v, metricKey === 'rating' ? 1 : 0) + '</text>'; }).join('') + segments.map(points => '<path d="M' + points[0][0] + ' 127 L' + points.map(p => p.join(' ')).join(' L') + ' L' + points[points.length - 1][0] + ' 127Z" fill="url(#area-' + metricKey + ')"/><path d="M' + points.map(p => p.join(' ')).join(' L') + '" fill="none" stroke="#82b6ff" stroke-width="2.2" stroke-linejoin="round"/>').join('') + series.map((p, i) => '<text x="' + x(i) + '" y="150" text-anchor="middle">' + esc(p.label || 'M' + (i + 1)) + '</text>' + (C.finite(p.value) ? '<g class="chart-point" tabindex="0" role="img" aria-label="' + esc((p.title || p.label) + ' / ' + (p.label || 'M' + (i + 1)) + ': ' + fmt(p.value, 2)) + '" data-tooltip="' + esc((p.title || p.label) + ' / ' + (p.label || 'M' + (i + 1)) + ': ' + fmt(p.value, 2)) + '" aria-describedby="chart-tooltip"><circle class="chart-hit" cx="' + x(i) + '" cy="' + y(p.value) + '" r="18" fill="transparent"/><circle class="chart-dot" cx="' + x(i) + '" cy="' + y(p.value) + '" r="4" fill="#141e2b" stroke="#82b6ff" stroke-width="2"/></g>' : '')).join('') + '</svg>';
   }
   function bars(items, decimals = 0) { const max = Math.max(1, ...items.map(i => i.value).filter(C.finite)); return items.length ? '<div class="bars">' + items.map(i => '<div><div class="bar-label"><span>' + esc(i.label) + '</span><b>' + fmt(i.value, decimals) + '</b></div><div class="bar-track"><div class="bar-fill" style="width:' + Math.max(0, Math.min(100, (i.value || 0) / max * 100)) + '%"></div></div></div>').join('') + '</div>' : empty(); }
   function rankingTable(list, m = 'rating', compact = false) {
@@ -113,6 +119,7 @@
     if (!p || !preview) return;
     selectedPlayerId = p.id;
     preview.innerHTML = playerPreview(p);
+    if (!motionQuery.matches) preview.animate([{ opacity: .8, transform: 'translateX(8px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 230, easing: 'ease-out' });
     document.querySelectorAll('.player-choice').forEach(button => {
       const selected = button.dataset.id === p.id;
       button.classList.toggle('selected', selected);
@@ -201,10 +208,11 @@
   }
   function recordsPage() {
     const achievements = [['Damage Dealer', 'Single match: imported ADR ≥ 100', 'adr', 100], ['Entry King', 'Single match: ≥ 5 opening kills', 'opening', 5], ['Support Spark', 'Single match: ≥ 3 flash assists', 'flashes', 3], ['Utility Master', 'Single match: ≥ 250 grenade damage', 'grenade', 250]];
-    return heading('For the record.', 'The performances your lobby will remember.', windowSelect()) + '<div class="records-grid full-records">' + recordCards(records()) + '</div><div class="section-title"><div><h2>Career milestones</h2><p>Transparent criteria. Earned in real matches.</p></div></div><div class="records-grid">' + roster.filter(p => p.stats.kills >= 100).map(p => '<div class="record-card"><span class="record-icon">' + icon('crosshair') + '</span><div class="upper">100 CAREER KILLS</div><div class="record-value">' + fmt(p.stats.kills) + '</div><div class="record-holder">' + esc(displayName(p)) + '</div><div class="record-map">Criterion: total recorded kills ≥ 100</div></div>').join('') + (roster.some(p => p.stats.kills >= 100) ? '' : empty('No milestones unlocked yet.', 'Reach 100 total recorded kills to earn the first career milestone.')) + '</div><div class="section-title"><div><h2>Single-match awards</h2><p>Each award is tied to one qualifying performance.</p></div></div><div class="grid-players">' + achievements.map(([name, criteria, field, cutoff]) => { const qualified = viewMatches().flatMap(m => m.rows.filter(r => C.finite(r[field]) && r[field] >= cutoff).map(r => ({ ...r, match: m }))); return '<div class="record-card"><span class="record-icon">' + icon('medal') + '</span><h3>' + name + '</h3><p class="local-note">' + criteria + '</p><div style="margin-top:15px;font-size:10px;color:#51627e">' + (qualified.map(r => '<a href="#match/' + r.match.id + '">' + esc(r.player) + ' · ' + esc(r.map) + '</a>').join('<br>') || 'No qualifying matches yet.') + '</div></div>'; }).join('') + '</div>';
+    return heading('For the record.', 'The performances your lobby will remember.', windowSelect()) + '<div class="records-grid full-records">' + recordCards(records()) + '</div><div class="section-title"><div><h2>Career milestones</h2><p>Transparent criteria. Earned in real matches.</p></div></div><div class="records-grid">' + roster.filter(p => p.stats.kills >= 100).map(p => '<div class="record-card"><span class="record-icon">' + icon('crosshair') + '</span><div class="upper">100 CAREER KILLS</div><div class="record-value">' + fmt(p.stats.kills) + '</div><div class="record-holder">' + esc(displayName(p)) + '</div><div class="record-map">Criterion: total recorded kills ≥ 100</div></div>').join('') + (roster.some(p => p.stats.kills >= 100) ? '' : empty('No milestones unlocked yet.', 'Reach 100 total recorded kills to earn the first career milestone.')) + '</div><div class="section-title"><div><h2>Single-match awards</h2><p>Each award is tied to one qualifying performance.</p></div></div><div class="grid-players">' + achievements.map(([name, criteria, field, cutoff]) => { const qualified = viewMatches().flatMap(m => m.rows.filter(r => C.finite(r[field]) && r[field] >= cutoff).map(r => ({ ...r, match: m }))); return '<div class="record-card"><span class="record-icon">' + icon('medal') + '</span><h3>' + name + '</h3><p class="local-note">' + criteria + '</p><div style="margin-top:15px;font-size:10px;color:var(--muted)">' + (qualified.map(r => '<a href="#match/' + r.match.id + '">' + esc(r.player) + ' · ' + esc(r.map) + '</a>').join('<br>') || 'No qualifying matches yet.') + '</div></div>'; }).join('') + '</div>';
   }
   function morePage() { return heading('The rest of the lobby.', 'There’s always more to the game.') + '<div class="more-grid">' + links.slice(4).map(([id, title, ico]) => '<a class="more-link" href="#' + id + '">' + icon(ico) + '<span>' + title + '</span></a>').join('') + '</div><div style="height:22px"></div><button class="btn" data-action="methodology">' + icon('info') + 'How statistics work</button>'; }
   function render() {
+    hideChartTooltip();
     const hash = location.hash.slice(1).split('/'); route = hash[0] || 'home';
     if (route === 'import') { history.replaceState(null, '', location.pathname + location.search + '#home'); route = 'home'; }
     try { routeId = decodeURIComponent(hash.slice(1).join('/')); } catch { routeId = ''; }
@@ -212,6 +220,51 @@
     const pages = { home, players: playersPage, player: playerPage, matches: matchesPage, match: matchPageView, leaderboard: leaderboardPage, rivalries: rivalryPage, analytics: analyticsPage, map: mapPage, records: recordsPage, duels: duelsPage, more: morePage };
     document.getElementById('main').innerHTML = (pages[route] || (() => heading('Page not found', 'Find your way back to the lobby.') + btn('Back to overview', '#home')))();
     document.title = (route === 'player' && getPlayer(routeId) ? displayName(getPlayer(routeId)) : route === 'home' ? 'Every Match Counts' : route.charAt(0).toUpperCase() + route.slice(1)) + ' — LAN League';
+    const key = route + '/' + routeId;
+    animateView(key !== renderedRoute);
+    renderedRoute = key;
+  }
+  function animateView(newPage) {
+    if (entranceObserver) entranceObserver.disconnect();
+    cancelAnimationFrame(motionFrame);
+    if (motionQuery.matches) return;
+    motionFrame = requestAnimationFrame(() => {
+      if (motionQuery.matches) return;
+      const main = document.getElementById('main');
+      if (newPage) {
+        let revealed = 0;
+        entranceObserver = new IntersectionObserver(entries => {
+          for (const entry of entries) if (entry.isIntersecting) {
+            entry.target.animate([{ opacity: .9, transform: 'translateY(14px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 390, delay: Math.min(revealed++ % 6 * 35, 140), easing: 'cubic-bezier(.2,.7,.2,1)' });
+            animateFigures(entry.target);
+            entranceObserver.unobserve(entry.target);
+          }
+        }, { threshold: .08 });
+        main.querySelectorAll('.page-heading, .hero, .stat-card, .panel, .player-card, .record-card, .map-card, .more-link').forEach(el => entranceObserver.observe(el));
+      } else {
+        main.querySelectorAll('.leaderboard, .duel-arena').forEach(el => el.animate([{ opacity: .45 }, { opacity: 1 }], { duration: 200 }));
+      }
+      if (!newPage) animateFigures(main);
+    });
+  }
+  function animateFigures(container) {
+    if (motionQuery.matches) return;
+    container.querySelectorAll('.chart path[fill="none"]').forEach(path => {
+      const length = path.getTotalLength();
+      path.animate([{ strokeDasharray: length + ' ' + length, strokeDashoffset: length }, { strokeDasharray: length + ' ' + length, strokeDashoffset: 0 }], { duration: 700, easing: 'ease-out' });
+    });
+    container.querySelectorAll('.bar-fill, .duel-share-track>div').forEach(el => el.animate([{ transform: 'scaleX(.05)' }, { transform: 'scaleX(1)' }], { duration: 480, easing: 'ease-out' }));
+  }
+  function hideChartTooltip() { const tip = document.getElementById('chart-tooltip'); if (tip) tip.hidden = true; }
+  function showChartTooltip(point) {
+    const tip = document.getElementById('chart-tooltip');
+    if (!tip || !point) return;
+    tip.textContent = point.dataset.tooltip;
+    tip.hidden = false;
+    const rect = point.getBoundingClientRect();
+    const top = rect.top > tip.offsetHeight + 16 ? rect.top - tip.offsetHeight - 10 : rect.bottom + 10;
+    tip.style.left = Math.max(10, Math.min(innerWidth - tip.offsetWidth - 10, rect.left + rect.width / 2 - tip.offsetWidth / 2)) + 'px';
+    tip.style.top = Math.max(10, Math.min(innerHeight - tip.offsetHeight - 10, top)) + 'px';
   }
   let toastTimer;
   function toast(text) { const el = document.getElementById('toast'); el.textContent = text; el.classList.add('visible'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('visible'), 4200); }
@@ -262,6 +315,14 @@
       try { const updated = { ...profiles, [id]: entry }; localStorage.setItem(PROFILES, JSON.stringify(updated)); profiles = updated; dialog.close(); render(); toast('Profile saved in this browser.'); } catch { toast('Your browser could not save this profile.'); }
     }
   });
+  document.addEventListener('pointerover', event => { const point = event.target.closest?.('.chart-point'); if (point) showChartTooltip(point); });
+  document.addEventListener('pointerout', event => { if (event.target.closest?.('.chart-point') && !event.relatedTarget?.closest?.('.chart-point')) hideChartTooltip(); });
+  document.addEventListener('focusin', event => { const point = event.target.closest?.('.chart-point'); if (point) showChartTooltip(point); });
+  document.addEventListener('focusout', event => { if (event.target.closest?.('.chart-point')) hideChartTooltip(); });
+  document.addEventListener('click', event => { const point = event.target.closest?.('.chart-point'); if (point) showChartTooltip(point); else hideChartTooltip(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') hideChartTooltip(); });
+  window.addEventListener('scroll', hideChartTooltip, { passive: true });
+  motionQuery.addEventListener('change', () => { if (motionQuery.matches) document.getAnimations().forEach(animation => animation.finish()); });
   window.addEventListener('hashchange', () => { render(); window.scrollTo({ top: 0, behavior: 'instant' }); document.getElementById('main').focus({ preventScroll: true }); });
   dialog.addEventListener('click', event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close(); } });
   render();

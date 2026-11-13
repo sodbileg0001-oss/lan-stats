@@ -17,6 +17,17 @@ let browser;
     page.on('pageerror', e => errors.push(e.message));
     await page.route('https://fonts.googleapis.com/**', r => r.abort());
     await page.goto('http://127.0.0.1:3000', { waitUntil: 'domcontentloaded' });
+    assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme), 'dark');
+    const contrast = await page.evaluate(() => {
+      const vars = getComputedStyle(document.documentElement);
+      const luminance = hex => {
+        const rgb = hex.trim().replace('#', '').match(/.{2}/g).map(v => parseInt(v, 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+        return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
+      };
+      const a = luminance(vars.getPropertyValue('--muted')), b = luminance(vars.getPropertyValue('--panel'));
+      return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+    });
+    assert.ok(contrast >= 4.5, 'Secondary text must have readable contrast on cards');
     fs.mkdirSync('test-results', { recursive: true });
     const playerIds = [...new Set(seed.matches.flatMap(m => m.rows.map(r => r.playerId)))];
     for (const width of [360, 390, 768, 1440]) {
@@ -35,6 +46,14 @@ let browser;
         }
       }
       await page.evaluate(() => location.hash = 'home'); await page.waitForTimeout(50);
+      const recent = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Recent matches', exact: true }) });
+      await recent.scrollIntoViewIfNeeded();
+      await page.waitForFunction(() => {
+        const images = [...document.querySelectorAll('.match-row .map-badge img')];
+        return images.length === 4 && images.every(img => img.complete && img.naturalWidth > 0);
+      });
+      assert.equal(await recent.locator('.map-badge img').count(), 4);
+      for (const src of await recent.locator('.map-badge img').evaluateAll(images => images.map(img => img.getAttribute('src')))) assert.ok(src.startsWith('assets/map-icons/de_'));
       assert.equal(await page.getByRole('group', { name: 'Choose a player', exact: true }).getByRole('button').count(), playerIds.length);
       for (const id of playerIds) {
         const choice = page.locator('.player-choice[data-id="' + id + '"]');
@@ -55,8 +74,8 @@ let browser;
       await page.waitForSelector('.player-choice[data-id="' + selectedId + '"][aria-pressed="true"]');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, 'Player picker overflows at ' + width + 'px');
       if (width === 360 || width === 1440) {
-        await page.screenshot({ path: `test-results/dashboard-${width}.png`, fullPage: true });
-        await page.locator('.player-picker').screenshot({ path: `test-results/player-picker-${width}.png` });
+        await page.screenshot({ path: `test-results/dashboard-${width}.png`, fullPage: true, animations: 'disabled' });
+        await page.locator('.player-picker').screenshot({ path: `test-results/player-picker-${width}.png`, animations: 'disabled' });
       }
     }
     await page.setViewportSize({ width: 390, height: 844 });
@@ -79,7 +98,7 @@ let browser;
     await page.locator('#ranking-minimum').selectOption('2');
     assert.equal(await page.locator('.leaderboard tbody tr').count(), 12);
     assert.ok(await page.locator('.leaderboard .table').isVisible());
-    await page.screenshot({ path: 'test-results/leaderboard-fixed-mobile.png', fullPage: true });
+    await page.screenshot({ path: 'test-results/leaderboard-fixed-mobile.png', fullPage: true, animations: 'disabled' });
     await page.evaluate(() => location.hash = 'players');
     await page.locator('#player-search').fill('Juugii'); assert.equal(await page.locator('.player-card').count(), 1);
     await page.locator('.player-card').click(); await page.getByRole('button', { name: 'Customize profile', exact: true }).last().click();
@@ -99,9 +118,9 @@ let browser;
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     await page.waitForTimeout(100);
     await page.setViewportSize({ width: 1440, height: 1100 });
-    await page.screenshot({ path: 'test-results/duels-1440.png', fullPage: true });
+    await page.screenshot({ path: 'test-results/duels-1440.png', fullPage: true, animations: 'disabled' });
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({ path: 'test-results/duels-390.png', fullPage: true });
+    await page.screenshot({ path: 'test-results/duels-390.png', fullPage: true, animations: 'disabled' });
     assert.equal(await page.locator('a[href="#import"]').count(), 0);
     assert.equal(await page.locator('input[accept=".xlsx"]').count(), 0);
     await page.evaluate(() => location.hash = 'import');
@@ -116,6 +135,19 @@ let browser;
     assert.equal(await page.locator('.duel-cell').count(), 76);
     assert.equal(fs.existsSync('dist/assets/import-worker.js'), false);
     assert.equal(fs.existsSync('dist/vendor'), false);
+    await page.evaluate(() => location.hash = 'home');
+    const point = page.locator('.chart-point').first();
+    await point.hover();
+    await page.getByRole('tooltip').waitFor({ state: 'visible' });
+    assert.ok((await page.getByRole('tooltip').textContent()).includes('M1'));
+    await point.focus();
+    assert.ok(await page.getByRole('tooltip').isVisible());
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('tooltip').isVisible(), false);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.evaluate(() => location.hash = 'duels');
+    await page.waitForSelector('.duel-matrix');
+    assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === 'running').length), 0);
     assert.deepEqual(errors, []);
     console.log(`Browser checks passed: 30 routes at 360, 390, 768, and 1440 px; player selection, all leaderboard categories, direct-duel scores, matchup grid, removed import links, saved data compatibility, search, and profile persistence; no JavaScript errors.`);
   } finally { if (browser) await browser.close(); server.kill(); }

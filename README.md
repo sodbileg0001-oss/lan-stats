@@ -1,6 +1,6 @@
 # LAN League
 
-A responsive CS2 analytics website built from your real Excel statistics, with a bright white, blue, and red interface. Open `index.html` directly or deploy it on Vercel.
+A responsive CS2 analytics website built from your real Excel statistics, with a dark, high-contrast interface and blue and red accents. Open `index.html` directly or deploy it on Vercel.
 
 ## Included
 
@@ -62,4 +62,10 @@ Browser checks use Chrome at `C:/Program Files/Google/Chrome/Application/chrome.
 
 ## Files
 
-`index.html` is the entry point. `assets/core.js` owns calculations and source parsing; `assets/app.js` owns interactions; `assets/styles.css` owns layout; `assets/theme.css` defines the white, blue, and red palette; `assets/data.js` contains the workbook snapshot. The local-only SheetJS library and license remain in `vendor/`. Fonts use Google Fonts with system fallbacks.
+`index.html` is the entry point. `assets/core.js` owns calculations and source parsing; `assets/app.js` owns interactions; `assets/styles.css` owns layout; `assets/theme.css` defines the dark graphite palette, readable text, and interaction states; `assets/data.js` contains the workbook snapshot. The local-only SheetJS library and license remain in `vendor/`. Fonts use Google Fonts with system fallbacks.
+
+## Icons and motion
+
+Map badges are bundled locally from [MurkyYT/cs2-map-icons](https://github.com/MurkyYT/cs2-map-icons). Ownership and source revision are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+The interface includes staggered page entrances, animated chart strokes and comparison bars, card hover and press feedback, and player-preview transitions. Chart points show match values on hover, tap, or keyboard focus. Motion respects the browser's reduced-motion setting.
