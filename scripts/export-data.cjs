@@ -1,0 +1,12 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const X = require('../vendor/xlsx.full.min.js');
+const LAN = require('../assets/core.js');
+const filename = process.argv[2] || 'lan data.xlsx';
+const wb = X.read(fs.readFileSync(filename), { type: 'buffer', sheets: ['Database'], cellFormula: false });
+if (!wb.Sheets.Database) throw new Error('Expected a Database sheet. Use the website import screen to map another format.');
+const rows = X.utils.sheet_to_json(wb.Sheets.Database, { header: 1, defval: null, blankrows: false });
+const parsed = LAN.parseRows(rows, { filename: path.basename(filename) });
+const data = { version: 1, source: path.basename(filename), sheet: 'Database', matches: parsed.matches, warnings: parsed.warnings, history: [{ filename: path.basename(filename), rows: parsed.count, matches: parsed.matches.length, status: 'Bundled workbook', date: null }] };
+fs.writeFileSync(path.join(__dirname, '../assets/data.js'), 'window.LAN_DATA = ' + JSON.stringify(data).replace(/</g, '\\u003c') + ';\n');
+console.log(JSON.stringify({ players: LAN.players(data.matches).length, matches: data.matches.length, records: parsed.count, warnings: parsed.warnings }, null, 2));

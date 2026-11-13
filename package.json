@@ -1,0 +1,19 @@
+{
+  "name": "lan-stats",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CS2 LAN League — real match statistics for your community",
+  "scripts": {
+    "dev": "node scripts/serve.cjs",
+    "start": "node scripts/serve.cjs",
+    "build": "node scripts/build.cjs",
+    "data": "node scripts/export-data.cjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0"
+  }
+}

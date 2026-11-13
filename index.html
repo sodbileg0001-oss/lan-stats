@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090b10">
+  <meta name="description" content="Your lobby. Your legacy. Explore real CS2 LAN player stats, match history, rankings, and rivalries.">
+  <title>LAN League — Every Match Counts</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/styles.css">
+  <script defer src="assets/core.js"></script>
+  <script defer src="assets/data.js"></script>
+  <script defer src="assets/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <aside id="sidebar" class="sidebar" aria-label="Main navigation"></aside>
+  <div class="workspace">
+    <header id="topbar" class="topbar"></header>
+    <main id="main" tabindex="-1"><div class="loading">Loading your lobby…</div></main>
+    <footer class="footer"><span>LAN LEAGUE <span class="muted">/</span> EVERY MATCH COUNTS.</span><span>Built for the people in your lobby.</span></footer>
+  </div>
+  <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile navigation"></nav>
+  <dialog id="modal" aria-labelledby="modal-title"><div id="modal-content"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <noscript>This website needs JavaScript to calculate and display match statistics.</noscript>
+</body>
+</html>
