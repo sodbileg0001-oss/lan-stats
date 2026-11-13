@@ -57,3 +57,31 @@ test('rankings enforce sample thresholds and complete metric coverage', () => {
   const p = structuredClone(ps[0]); p.stats.adrSamples = p.stats.matches - 1; assert.equal(C.rank([p], 'adr', 1).length, 0);
   assert.ok(C.rank(ps, 'rating', 2).every(p => p.stats.matches >= 2));
 });
+test('duel sheet preserves all 76 original directional records and reciprocal scores', () => {
+  assert.equal(data.duels.length, 76);
+  const pairs = new Set();
+  for (const r of data.duels) {
+    const reverse = data.duels.find(o => o.playerId === r.opponentId && o.opponentId === r.playerId);
+    assert.ok(reverse); assert.equal(r.kills, reverse.deaths); assert.equal(r.deaths, reverse.kills);
+    const score = r.sourceValue.match(/^(\d+):(\d+)/);
+    assert.equal(r.kills, Number(score[1])); assert.equal(r.deaths, Number(score[2]));
+    pairs.add([r.playerId, r.opponentId].sort().join('/'));
+  }
+  assert.equal(pairs.size, 38);
+  assert.equal(data.duels.reduce((n, r) => n + r.kills, 0), 749);
+});
+test('duel win rate uses direct encounters rather than match wins', () => {
+  const standings = C.duelStandings(data.duels), p = standings.find(p => p.name === 'Juugii');
+  assert.equal(standings.length, 12); assert.equal(p.kills, 98); assert.equal(p.deaths, 67);
+  assert.equal(p.encounters, 165); assert.equal(p.winRate, 98 / 165 * 100);
+  assert.equal(data.duels.some(r => r.player === 'Juugii' && r.opponent === 'Tuvshoko'), false);
+});
+test('duel parser retains sparse cells and rejects contradictory records', () => {
+  const rows = [['A/B', 'Alice', 'Bob'], ['Alice', null, '11:7\n(+4)'], ['Bob', '7:11\n(-4)', null]];
+  const parsed = C.parseDuelSheet(rows);
+  assert.equal(parsed.length, 2); assert.equal(parsed[0].sourceValue, rows[1][2]);
+  assert.equal(parsed[0].kills, 11); assert.equal(parsed[0].deaths, 7);
+  assert.equal(C.parseDuelSheet([['A/B', 'Alice', 'Bob'], ['Alice', null, null]]).length, 0);
+  assert.throws(() => C.parseDuelSheet([rows[0], rows[1], ['Bob', '7:12', null]]), /disagree/);
+  assert.throws(() => C.parseDuelSheet([rows[0], ['Alice', null, 'unknown']]), /Invalid duel score/);
+});

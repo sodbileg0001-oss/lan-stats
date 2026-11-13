@@ -122,6 +122,39 @@
     const games = matches.flatMap(m => { const ra = m.rows.find(r => r.playerId === a), rb = m.rows.find(r => r.playerId === b); return ra && rb && ra.team !== rb.team ? [{ match: m, a: ra, b: rb }] : []; });
     return { games, a: aggregate(games.map(g => g.a)), b: aggregate(games.map(g => g.b)) };
   }
+  function parseDuelSheet(rows) {
+    const headerIndex = rows.findIndex(r => key(r[0]) === 'a/b');
+    if (headerIndex < 0) throw new Error('Duel sheet must have an A/B header and opponent names.');
+    const headers = rows[headerIndex], entries = [];
+    for (let rowIndex = headerIndex + 1; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex], player = clean(row[0]);
+      if (!player) continue;
+      for (let col = 1; col < headers.length; col++) {
+        const opponent = clean(headers[col]), value = row[col];
+        if (!opponent || key(player) === key(opponent) || value == null || clean(value) === '') continue;
+        const score = String(value).match(/^\s*(\d+)\s*:\s*(\d+)(?:\s|$)/);
+        if (!score) throw new Error('Invalid duel score at row ' + (rowIndex + 1) + ', column ' + (col + 1) + '.');
+        entries.push({ playerId: playerId(player), opponentId: playerId(opponent), player, opponent, kills: Number(score[1]), deaths: Number(score[2]), sourceValue: value, sourceRow: rowIndex + 1, sourceColumn: col + 1 });
+      }
+    }
+    const seen = new Set();
+    for (const entry of entries) {
+      const id = entry.playerId + '/' + entry.opponentId;
+      if (seen.has(id)) throw new Error('Duplicate duel record for ' + entry.player + ' against ' + entry.opponent + '.');
+      seen.add(id);
+      const reverse = entries.find(r => r.playerId === entry.opponentId && r.opponentId === entry.playerId);
+      if (reverse && (reverse.kills !== entry.deaths || reverse.deaths !== entry.kills)) throw new Error('Duel scores disagree for ' + entry.player + ' and ' + entry.opponent + '.');
+    }
+    return entries;
+  }
+  function duelStandings(entries) {
+    const grouped = new Map();
+    for (const r of entries) {
+      if (!grouped.has(r.playerId)) grouped.set(r.playerId, { id: r.playerId, name: r.player, kills: 0, deaths: 0, opponents: 0 });
+      const p = grouped.get(r.playerId); p.kills += r.kills; p.deaths += r.deaths; p.opponents++;
+    }
+    return [...grouped.values()].map(p => ({ ...p, encounters: p.kills + p.deaths, winRate: p.kills + p.deaths ? p.kills / (p.kills + p.deaths) * 100 : null, kd: ratio(p.kills, p.deaths) })).sort((a, b) => (b.winRate ?? -1) - (a.winRate ?? -1) || b.kills - a.kills || a.name.localeCompare(b.name));
+  }
   function merge(existing, incoming, replace = false) {
     const matches = [...existing], duplicates = [], conflicts = [];
     for (const m of incoming) {
@@ -132,5 +165,5 @@
     }
     return { matches, duplicates, conflicts };
   }
-  return { fields, percentageFields, finite, number, mean, sum, ratio, hash, key, playerId, mappings, parseRows, aggregate, players, rank, headToHead, merge };
+  return { fields, percentageFields, finite, number, mean, sum, ratio, hash, key, playerId, mappings, parseRows, aggregate, players, rank, headToHead, parseDuelSheet, duelStandings, merge };
 });
