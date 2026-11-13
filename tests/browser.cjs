@@ -29,7 +29,29 @@ let browser;
         assert.ok(await page.locator('main h1').count(), `Missing heading: ${hash}`);
       }
       await page.evaluate(() => location.hash = 'home'); await page.waitForTimeout(50);
-      if (width === 360 || width === 1440) await page.screenshot({ path: `test-results/dashboard-${width}.png`, fullPage: true });
+      assert.equal(await page.getByRole('group', { name: 'Choose a player', exact: true }).getByRole('button').count(), playerIds.length);
+      for (const id of playerIds) {
+        const choice = page.locator('.player-choice[data-id="' + id + '"]');
+        await choice.click();
+        assert.equal(await choice.getAttribute('aria-pressed'), 'true');
+        assert.equal(await page.locator('.player-choice[aria-pressed="true"]').count(), 1);
+        assert.equal(await page.locator('.hero-profile-link').getAttribute('href'), '#player/' + id);
+        const name = seed.matches.flatMap(m => m.rows).find(r => r.playerId === id).player;
+        assert.equal(await page.locator('.hero-player-name').textContent(), name);
+      }
+      const keyboardChoice = page.locator('.player-choice').first();
+      await keyboardChoice.focus(); await keyboardChoice.press('Enter');
+      const selectedId = await keyboardChoice.getAttribute('data-id');
+      await page.locator('.hero-profile-link').click();
+      await page.waitForURL('**/#player/' + selectedId);
+      assert.equal(await page.locator('.profile-name').textContent(), seed.matches.flatMap(m => m.rows).find(r => r.playerId === selectedId).player);
+      await page.evaluate(() => location.hash = 'home');
+      await page.waitForSelector('.player-choice[data-id="' + selectedId + '"][aria-pressed="true"]');
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, 'Player picker overflows at ' + width + 'px');
+      if (width === 360 || width === 1440) {
+        await page.screenshot({ path: `test-results/dashboard-${width}.png`, fullPage: true });
+        await page.locator('.player-picker').screenshot({ path: `test-results/player-picker-${width}.png` });
+      }
     }
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => location.hash = 'players');
@@ -65,6 +87,6 @@ let browser;
     await page.getByRole('button', { name: 'Restore workbook', exact: true }).click();
     assert.equal(await page.evaluate(() => localStorage.getItem('lan-league-data-v1')), null);
     assert.deepEqual(errors, []);
-    console.log(`Browser checks passed: 30 routes at 360, 390, 768, and 1440 px; search, profile persistence, duplicate XLSX imports, confirmed new import, recalculation, reload, and restore; no JavaScript errors.`);
+    console.log(`Browser checks passed: 30 routes at 360, 390, 768, and 1440 px; all player-picker choices, keyboard selection, profile navigation, search, profile persistence, duplicate XLSX imports, confirmed new import, recalculation, reload, and restore; no JavaScript errors.`);
   } finally { if (browser) await browser.close(); server.kill(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
