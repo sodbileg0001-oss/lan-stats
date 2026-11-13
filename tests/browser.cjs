@@ -6,6 +6,7 @@ const X = require('../vendor/xlsx.full.min.js');
 const vm = require('node:vm');
 const context = { window: {} }; vm.runInNewContext(fs.readFileSync('assets/data.js', 'utf8'), context);
 const seed = JSON.parse(JSON.stringify(context.window.LAN_DATA));
+const C = require('../assets/core.js');
 const server = spawn(process.execPath, ['scripts/serve.cjs'], { stdio: 'pipe' });
 const ready = new Promise((resolve, reject) => { server.stdout.once('data', resolve); server.once('error', reject); server.once('exit', code => { if (code) reject(new Error('Preview server exited: ' + code)); }); });
 let browser;
@@ -27,6 +28,12 @@ let browser;
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
         assert.equal(overflow, false, `Horizontal overflow: ${hash} at ${width}px`);
         assert.ok(await page.locator('main h1').count(), `Missing heading: ${hash}`);
+        if (hash === 'leaderboard') {
+          assert.ok(await page.locator('.leaderboard .table').isVisible(), `Leaderboard is hidden at ${width}px`);
+          assert.equal(await page.locator('.leaderboard tbody tr').count(), C.rank(C.players(seed.matches), 'rating', 2).length);
+          assert.equal(await page.locator('.leaderboard').evaluate(el => Boolean(el.closest('select'))), false, 'Rankings must not be nested inside a filter dropdown');
+          assert.ok(await page.getByRole('button', { name: 'Methodology', exact: true }).isVisible());
+        }
       }
       await page.evaluate(() => location.hash = 'home'); await page.waitForTimeout(50);
       assert.equal(await page.getByRole('group', { name: 'Choose a player', exact: true }).getByRole('button').count(), playerIds.length);
@@ -54,6 +61,26 @@ let browser;
       }
     }
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => location.hash = 'leaderboard');
+    const categories = await page.locator('#ranking-metric option').evaluateAll(options => options.map(o => o.value));
+    for (const category of categories) {
+      await page.locator('#ranking-metric').selectOption(category);
+      const count = C.rank(C.players(seed.matches), category, 2).length;
+      assert.ok(await page.locator('.leaderboard').isVisible(), `Category ${category} is hidden`);
+      if (count) {
+        assert.ok(await page.locator('.leaderboard .table').isVisible(), `Table is hidden for ${category}`);
+        assert.equal(await page.locator('.leaderboard tbody tr').count(), count);
+      } else {
+        assert.ok(await page.locator('.leaderboard .empty').isVisible(), `Missing-data explanation is hidden for ${category}`);
+      }
+    }
+    await page.locator('#ranking-metric').selectOption('rating');
+    await page.locator('#ranking-minimum').selectOption('10');
+    assert.ok(await page.locator('.leaderboard .empty').isVisible(), 'High minimum must show its empty-state explanation');
+    await page.locator('#ranking-minimum').selectOption('2');
+    assert.equal(await page.locator('.leaderboard tbody tr').count(), 12);
+    assert.ok(await page.locator('.leaderboard .table').isVisible());
+    await page.screenshot({ path: 'test-results/leaderboard-fixed-mobile.png', fullPage: true });
     await page.evaluate(() => location.hash = 'players');
     await page.locator('#player-search').fill('Juugii'); assert.equal(await page.locator('.player-card').count(), 1);
     await page.locator('.player-card').click(); await page.getByRole('button', { name: 'Customize profile', exact: true }).last().click();
