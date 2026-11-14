@@ -41,7 +41,13 @@
   let selectedPlayerId = '';
   let route = 'home', routeId = '', windowSize = 0, metric = 'rating', minMatches = 2, chartMetric = 'rating', playerQuery = '', matchMap = '', matchPage = 0, compareA = '', compareB = '', duelA = '', duelB = '';
   const duelEntries = window.LAN_DATA.duels || [];
-  try { const saved = JSON.parse(localStorage.getItem(STORE)); if (saved?.version === 1 && Array.isArray(saved.matches) && saved.matches.every(m => Array.isArray(m.rows))) data = saved; profiles = JSON.parse(localStorage.getItem(PROFILES)) || {}; } catch { /* A clean workbook remains available if storage is unavailable. */ }
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE));
+    if (saved?.version === 1 && Array.isArray(saved.matches) && saved.matches.every(m => Array.isArray(m.rows))) {
+      data.matches = C.merge(data.matches, saved.matches).matches;
+    }
+    profiles = JSON.parse(localStorage.getItem(PROFILES)) || {};
+  } catch { /* The published workbook remains available if storage is unavailable. */ }
   const viewMatches = () => windowSize ? data.matches.slice(-windowSize) : data.matches;
   const refresh = () => { allRoster = C.players(data.matches); roster = C.players(viewMatches()); };
   const getPlayer = id => roster.find(p => p.id === id) || allRoster.find(p => p.id === id);

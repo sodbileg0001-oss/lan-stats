@@ -159,6 +159,8 @@ button, .btn, .nav-link, .player-card, .map-card, .more-link { transition: backg
 .profile-score b { color: #9bc7ff; }
 .profile-info p { color: #bacce5; font-size: 12px; }
 .player-card:hover { border-color: #7aa7df; box-shadow: 0 8px 24px #0003; }
+.player-card { min-width: 0; }
+.player-card-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .player-card-sub, .player-card-stats small { color: #b6c8e1; font-size: 11px; }
 .player-card-name { font-size: 18px; }
 .player-card-stats b { font-size: 21px; }
@@ -237,6 +239,9 @@ dialog::backdrop { background: #050910b8; }
   .stat-card { padding: 17px; }
   .stat-value { font-size: 30px; }
 }
+@media (max-width: 1000px) {
+  .grid-players { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 760px) {
   .breadcrumb>span:first-child { color: #c3ddff; }
   main { padding-top: 25px; }
@@ -299,6 +304,7 @@ dialog::backdrop { background: #050910b8; }
   .footer { font-size: 9px; }
 }
 @media (max-width: 420px) {
+  .player-card-stats b { font-size: 17px; }
   .player-choice-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .player-choice { min-height: 76px; }
   .player-picker .hero-content>p { font-size: 12px; }

@@ -30,9 +30,12 @@ let browser;
     assert.ok(contrast >= 4.5, 'Secondary text must have readable contrast on cards');
     fs.mkdirSync('test-results', { recursive: true });
     const playerIds = [...new Set(seed.matches.flatMap(m => m.rows.map(r => r.playerId)))];
+    const rankedPlayers = C.rank(C.players(seed.matches), 'rating', 2).length;
+    const duelPlayers = C.duelStandings(seed.duels).length;
+    const routes = ['home', 'players', 'matches', 'leaderboard', 'rivalries', 'analytics', 'records', 'duels', 'more', ...playerIds.map(id => 'player/' + id), ...seed.matches.map(m => 'match/' + m.id), ...[...new Set(seed.matches.map(m => m.map))].map(m => 'map/' + encodeURIComponent(m))];
     for (const width of [360, 390, 768, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
-      for (const hash of ['home', 'players', 'matches', 'leaderboard', 'rivalries', 'analytics', 'records', 'duels', 'more', ...playerIds.map(id => 'player/' + id), ...seed.matches.map(m => 'match/' + m.id), ...['Mirage', 'Inferno', 'Ancient', 'Dust%202'].map(m => 'map/' + m)]) {
+      for (const hash of routes) {
         await page.evaluate(h => location.hash = h, hash);
         await page.waitForTimeout(25);
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
@@ -94,9 +97,10 @@ let browser;
     }
     await page.locator('#ranking-metric').selectOption('rating');
     await page.locator('#ranking-minimum').selectOption('10');
-    assert.ok(await page.locator('.leaderboard .empty').isVisible(), 'High minimum must show its empty-state explanation');
+    if (C.rank(C.players(seed.matches), 'rating', 10).length) assert.ok(await page.locator('.leaderboard .table').isVisible());
+    else assert.ok(await page.locator('.leaderboard .empty').isVisible(), 'High minimum must show its empty-state explanation');
     await page.locator('#ranking-minimum').selectOption('2');
-    assert.equal(await page.locator('.leaderboard tbody tr').count(), 12);
+    assert.equal(await page.locator('.leaderboard tbody tr').count(), rankedPlayers);
     assert.ok(await page.locator('.leaderboard .table').isVisible());
     await page.screenshot({ path: 'test-results/leaderboard-fixed-mobile.png', fullPage: true, animations: 'disabled' });
     await page.evaluate(() => location.hash = 'players');
@@ -106,15 +110,18 @@ let browser;
     assert.equal(await page.locator('.profile-name').textContent(), 'Local test nickname');
     await page.reload(); assert.equal(await page.locator('.profile-name').textContent(), 'Local test nickname');
     await page.evaluate(() => { localStorage.removeItem('lan-league-profiles-v1'); location.hash = 'duels'; }); await page.reload();
-    assert.equal(await page.locator('.duel-standings tbody tr').count(), 12);
+    assert.equal(await page.locator('.duel-standings tbody tr').count(), duelPlayers);
     assert.equal(await page.locator('.duel-cell').count(), seed.duels.length);
-    const juugii = C.playerId('Juugii'), tushgee = C.playerId('Tushgee'), tuvshoko = C.playerId('Tuvshoko');
+    const juugii = C.playerId('Juugii'), tushgee = C.playerId('Tushgee');
+    const pair = seed.duels.find(r => r.playerId === juugii && r.opponentId === tushgee);
     await page.locator('#duel-a').selectOption(juugii); await page.locator('#duel-b').selectOption(tushgee);
-    assert.deepEqual(await page.locator('.duel-contender strong').allTextContents(), ['25', '13']);
-    await page.locator('#duel-b').selectOption(tuvshoko);
+    assert.deepEqual(await page.locator('.duel-contender strong').allTextContents(), [String(pair.kills), String(pair.deaths)]);
+    const missingOpponent = playerIds.find(id => id !== juugii && !seed.duels.some(r => r.playerId === juugii && r.opponentId === id));
+    assert.ok(missingOpponent, 'The workbook has an unrecorded pairing for the empty-state check');
+    await page.locator('#duel-b').selectOption(missingOpponent);
     assert.ok(await page.getByText('No recorded duels for this pair.', { exact: true }).isVisible());
     await page.locator('.duel-cell[data-player="' + tushgee + '"][data-opponent="' + juugii + '"]').click();
-    assert.deepEqual(await page.locator('.duel-contender strong').allTextContents(), ['13', '25']);
+    assert.deepEqual(await page.locator('.duel-contender strong').allTextContents(), [String(pair.deaths), String(pair.kills)]);
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     await page.waitForTimeout(100);
     await page.setViewportSize({ width: 1440, height: 1100 });
@@ -126,13 +133,13 @@ let browser;
     await page.evaluate(() => location.hash = 'import');
     await page.waitForURL('**/#home');
     assert.ok(await page.locator('.player-picker').isVisible());
-    // Previously saved match snapshots still work after the importer is removed.
-    await page.evaluate(snapshot => localStorage.setItem('lan-league-data-v1', JSON.stringify({ version: 1, matches: snapshot.matches })), seed);
+    // An older browser snapshot must not hide newly published workbook matches.
+    await page.evaluate(snapshot => localStorage.setItem('lan-league-data-v1', JSON.stringify({ version: 1, matches: snapshot.matches.slice(0, -1) })), seed);
     await page.reload();
-    assert.equal(await page.locator('.stat-value').nth(1).textContent(), '5');
+    assert.equal(await page.locator('.stat-value').nth(1).textContent(), String(seed.matches.length));
     await page.evaluate(() => location.hash = 'duels');
     await page.waitForSelector('.duel-standings tbody tr');
-    assert.equal(await page.locator('.duel-cell').count(), 76);
+    assert.equal(await page.locator('.duel-cell').count(), seed.duels.length);
     assert.equal(fs.existsSync('dist/assets/import-worker.js'), false);
     assert.equal(fs.existsSync('dist/vendor'), false);
     await page.evaluate(() => location.hash = 'home');
@@ -149,6 +156,6 @@ let browser;
     await page.waitForSelector('.duel-matrix');
     assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === 'running').length), 0);
     assert.deepEqual(errors, []);
-    console.log(`Browser checks passed: 30 routes at 360, 390, 768, and 1440 px; player selection, all leaderboard categories, direct-duel scores, matchup grid, removed import links, saved data compatibility, search, and profile persistence; no JavaScript errors.`);
+    console.log(`Browser checks passed: ${routes.length} routes at 360, 390, 768, and 1440 px; player selection, all leaderboard categories, direct-duel scores, matchup grid, published data refresh, search, and profile persistence; no JavaScript errors.`);
   } finally { if (browser) await browser.close(); server.kill(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

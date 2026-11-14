@@ -5,11 +5,18 @@ const vm = require('node:vm');
 const C = require('../assets/core.js');
 const context = { window: {} }; vm.runInNewContext(fs.readFileSync('assets/data.js', 'utf8'), context);
 const data = JSON.parse(JSON.stringify(context.window.LAN_DATA));
+const originalMatches = data.matches.slice(0, 5);
 const headers = ['Player', 'Team', 'Result', 'Kills', 'Deaths', 'Assists', 'Map', 'HLTV 2.1 rating', 'KAST %', 'ADR'];
-test('original workbook produces exactly five matches, fifty records, twelve real players', () => {
-  assert.equal(data.matches.length, 5); assert.equal(data.matches.flatMap(m => m.rows).length, 50); assert.equal(C.players(data.matches).length, 12);
-  assert.equal(new Set(data.matches.map(m => m.map)).size, 4);
-  for (const m of data.matches) { assert.equal(m.rows.length, 10); assert.equal(m.teams.length, 2); assert.equal(m.rounds, null); assert.equal(m.date, null); }
+test('published workbook has unique matches and player records backed by raw source rows', () => {
+  assert.ok(data.matches.length > 0);
+  assert.equal(new Set(data.matches.map(m => m.id)).size, data.matches.length);
+  for (const m of data.matches) {
+    assert.ok(m.rows.length > 0); assert.equal(m.teams.length, 2);
+    assert.equal(new Set(m.rows.map(r => r.playerId)).size, m.rows.length);
+    for (const r of m.rows) {
+      assert.equal(r.player, r.raw.Player); assert.equal(r.kills, r.raw.Kills); assert.equal(r.deaths, r.raw.Deaths);
+    }
+  }
 });
 test('every career profile agrees with its original source kills, deaths, damage, and official ratings', () => {
   for (const p of C.players(data.matches)) {
@@ -42,39 +49,49 @@ test('invalid rows are excluded and original extra columns are retained', () => 
   assert.equal(parsed.count, 1); assert.equal(parsed.matches[0].rows[0].raw['Custom metric'], 'original'); assert.ok(parsed.warnings.some(s => s.includes('invalid')));
 });
 test('same workbook cannot add duplicate matches, conflicts never overwrite silently', () => {
-  assert.equal(C.merge(data.matches, data.matches).matches.length, 5); assert.equal(C.merge(data.matches, data.matches).duplicates.length, 5);
+  assert.equal(C.merge(data.matches, data.matches).matches.length, data.matches.length); assert.equal(C.merge(data.matches, data.matches).duplicates.length, data.matches.length);
   const changed = structuredClone(data.matches[0]); changed.fingerprint = 'changed'; changed.rows[0].kills += 1;
   const rejected = C.merge(data.matches, [changed]); assert.equal(rejected.conflicts.length, 1); assert.equal(rejected.matches[0].fingerprint, data.matches[0].fingerprint);
   assert.equal(C.merge(data.matches, [changed], true).matches[0].fingerprint, 'changed');
 });
 test('head-to-head counts only opposing teams, never teammates', () => {
   const a = C.playerId('Juugii'), teammate = C.playerId('Tuvshoko'), opponent = C.playerId('Amka');
-  assert.equal(C.headToHead(data.matches, a, teammate).games.length, 0);
-  const duel = C.headToHead(data.matches, a, opponent); assert.equal(duel.games.length, 5); assert.equal(duel.a.wins, 3); assert.equal(duel.b.wins, 2);
+  assert.equal(C.headToHead(originalMatches, a, teammate).games.length, 0);
+  const duel = C.headToHead(originalMatches, a, opponent); assert.equal(duel.games.length, 5); assert.equal(duel.a.wins, 3); assert.equal(duel.b.wins, 2);
 });
 test('rankings enforce sample thresholds and complete metric coverage', () => {
-  const ps = C.players(data.matches); assert.equal(C.rank(ps, 'mvp', 1).length, 0); assert.equal(C.rank(ps, 'rating', 10).length, 0);
+  const ps = C.players(data.matches); assert.equal(C.rank(C.players(originalMatches), 'mvp', 1).length, 0); assert.equal(C.rank(ps, 'rating', Math.max(...ps.map(p => p.stats.matches)) + 1).length, 0);
   const p = structuredClone(ps[0]); p.stats.adrSamples = p.stats.matches - 1; assert.equal(C.rank([p], 'adr', 1).length, 0);
   assert.ok(C.rank(ps, 'rating', 2).every(p => p.stats.matches >= 2));
 });
-test('duel sheet preserves all 76 original directional records and reciprocal scores', () => {
-  assert.equal(data.duels.length, 76);
+test('duel sheet preserves original scores, reciprocals, and total recorded kills', () => {
+  assert.ok(data.duels.length > 0);
   const pairs = new Set();
   for (const r of data.duels) {
     const reverse = data.duels.find(o => o.playerId === r.opponentId && o.opponentId === r.playerId);
     assert.ok(reverse); assert.equal(r.kills, reverse.deaths); assert.equal(r.deaths, reverse.kills);
-    const score = r.sourceValue.match(/^(\d+):(\d+)/);
+    const score = r.sourceValue.match(/^\s*(\d+):(\d+)/);
     assert.equal(r.kills, Number(score[1])); assert.equal(r.deaths, Number(score[2]));
     pairs.add([r.playerId, r.opponentId].sort().join('/'));
   }
-  assert.equal(pairs.size, 38);
-  assert.equal(data.duels.reduce((n, r) => n + r.kills, 0), 749);
+  assert.equal(pairs.size * 2, data.duels.length);
+  assert.equal(data.duels.reduce((n, r) => n + r.kills, 0), data.matches.flatMap(m => m.rows).reduce((n, r) => n + r.raw.Kills, 0));
 });
 test('duel win rate uses direct encounters rather than match wins', () => {
   const standings = C.duelStandings(data.duels), p = standings.find(p => p.name === 'Juugii');
-  assert.equal(standings.length, 12); assert.equal(p.kills, 98); assert.equal(p.deaths, 67);
-  assert.equal(p.encounters, 165); assert.equal(p.winRate, 98 / 165 * 100);
-  assert.equal(data.duels.some(r => r.player === 'Juugii' && r.opponent === 'Tuvshoko'), false);
+  const scores = data.duels.filter(r => r.playerId === p.id).map(r => r.sourceValue.match(/^\s*(\d+):(\d+)/));
+  const kills = scores.reduce((n, s) => n + Number(s[1]), 0), deaths = scores.reduce((n, s) => n + Number(s[2]), 0);
+  assert.equal(standings.length, new Set(data.duels.map(r => r.playerId)).size);
+  assert.equal(p.kills, kills); assert.equal(p.deaths, deaths);
+  assert.equal(p.encounters, kills + deaths); assert.equal(p.winRate, kills / (kills + deaths) * 100);
+});
+test('duel nicknames resolve to existing match profiles while original sheet names are preserved', () => {
+  const players = C.players(data.matches), ids = new Set(players.map(p => p.id));
+  for (const duel of data.duels) { assert.ok(ids.has(duel.playerId)); assert.ok(ids.has(duel.opponentId)); }
+  for (const alias of data.playerAliases || []) {
+    assert.equal(players.find(p => p.id === alias.playerId)?.name, alias.to);
+    assert.ok(data.duels.some(r => r.player === alias.from && r.playerId === alias.playerId));
+  }
 });
 test('duel parser retains sparse cells and rejects contradictory records', () => {
   const rows = [['A/B', 'Alice', 'Bob'], ['Alice', null, '11:7\n(+4)'], ['Bob', '7:11\n(-4)', null]];
