@@ -57,7 +57,10 @@
     if (!p) return '';
     const image = profiles[p.id]?.avatar;
     const safeImage = typeof image === 'string' && /^data:image\/(png|jpeg|webp);base64,[a-z\d+/=]+$/i.test(image);
-    return '<span class="avatar ' + size + '" style="--avatar-color:' + profileColor(p) + '">' + (safeImage ? '<img src="' + image + '" alt="">' : esc(displayName(p).split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase())) + '</span>';
+    const defaultImage = window.LAN_AVATARS?.[p.id];
+    const safeDefault = typeof defaultImage === 'string' && /^Profile%20pictures\/[^/\\?#]+\.(?:jpe?g|png|webp)$/i.test(defaultImage);
+    const src = safeImage ? image : safeDefault ? defaultImage : '';
+    return '<span class="avatar ' + size + '" style="--avatar-color:' + profileColor(p) + '">' + (src ? '<img src="' + esc(src) + '" width="96" height="96" alt="" loading="lazy" decoding="async">' : esc(displayName(p).split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase())) + '</span>';
   };
   const playerLink = (p, detail = '') => '<div class="player-cell">' + avatar(p, 'sm') + '<div><a href="#player/' + esc(p.id) + '">' + esc(displayName(p)) + '</a>' + (detail ? '<small>' + esc(detail) + '</small>' : '') + '</div></div>';
   const mapThumb = (map, cls = '') => {

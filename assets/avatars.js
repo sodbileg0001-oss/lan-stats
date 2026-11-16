@@ -1,0 +1,1 @@
+window.LAN_AVATARS = {"p-5ko0ut":"Profile%20pictures/Baachka%20ax.jpg","p-1cn0viu":"Profile%20pictures/Juugii.jpg","p-plgc4k":"Profile%20pictures/Sukhee.jpg","p-1l1g84g":"Profile%20pictures/Tuba%20ax.jpg","p-14a8w6y":"Profile%20pictures/Tuvshoko.jpg"};

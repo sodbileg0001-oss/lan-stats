@@ -4,7 +4,9 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const context = { window: {} }; vm.runInNewContext(fs.readFileSync('assets/data.js', 'utf8'), context);
+vm.runInNewContext(fs.readFileSync('assets/avatars.js', 'utf8'), context);
 const seed = JSON.parse(JSON.stringify(context.window.LAN_DATA));
+const sharedAvatars = JSON.parse(JSON.stringify(context.window.LAN_AVATARS));
 const C = require('../assets/core.js');
 const server = spawn(process.execPath, ['scripts/serve.cjs'], { stdio: 'pipe' });
 const ready = new Promise((resolve, reject) => { server.stdout.once('data', resolve); server.once('error', reject); server.once('exit', code => { if (code) reject(new Error('Preview server exited: ' + code)); }); });
@@ -29,6 +31,13 @@ let browser;
     });
     assert.ok(contrast >= 4.5, 'Secondary text must have readable contrast on cards');
     fs.mkdirSync('test-results', { recursive: true });
+    for (const [id, src] of Object.entries(sharedAvatars)) {
+      const picture = page.locator('.player-choice[data-id="' + id + '"] .avatar img');
+      assert.equal(await picture.getAttribute('src'), src);
+      await picture.scrollIntoViewIfNeeded();
+      await picture.evaluate(img => img.decode());
+      assert.ok(await picture.evaluate(img => img.naturalWidth > 0), 'Shared player picture failed to load');
+    }
     const playerIds = [...new Set(seed.matches.flatMap(m => m.rows.map(r => r.playerId)))];
     const rankedPlayers = C.rank(C.players(seed.matches), 'rating', 2).length;
     const duelPlayers = C.duelStandings(seed.duels).length;
@@ -41,6 +50,12 @@ let browser;
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
         assert.equal(overflow, false, `Horizontal overflow: ${hash} at ${width}px`);
         assert.ok(await page.locator('main h1').count(), `Missing heading: ${hash}`);
+        if (hash.startsWith('player/') && sharedAvatars[hash.slice(7)]) {
+          const picture = page.locator('.profile-hero .avatar img');
+          assert.equal(await picture.getAttribute('src'), sharedAvatars[hash.slice(7)]);
+          await picture.scrollIntoViewIfNeeded();
+          await picture.evaluate(img => img.decode());
+        }
         if (hash === 'leaderboard') {
           assert.ok(await page.locator('.leaderboard .table').isVisible(), `Leaderboard is hidden at ${width}px`);
           assert.equal(await page.locator('.leaderboard tbody tr').count(), C.rank(C.players(seed.matches), 'rating', 2).length);
@@ -109,6 +124,7 @@ let browser;
     await page.locator('#profile-nickname').fill('Local test nickname'); await page.getByRole('button', { name: 'Save profile', exact: true }).click();
     assert.equal(await page.locator('.profile-name').textContent(), 'Local test nickname');
     await page.reload(); assert.equal(await page.locator('.profile-name').textContent(), 'Local test nickname');
+    if (sharedAvatars[C.playerId('Juugii')]) assert.equal(await page.locator('.profile-hero .avatar img').getAttribute('src'), sharedAvatars[C.playerId('Juugii')]);
     await page.evaluate(() => { localStorage.removeItem('lan-league-profiles-v1'); location.hash = 'duels'; }); await page.reload();
     assert.equal(await page.locator('.duel-standings tbody tr').count(), duelPlayers);
     assert.equal(await page.locator('.duel-cell').count(), seed.duels.length);

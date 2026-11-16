@@ -25,7 +25,11 @@ Open http://127.0.0.1:3000, or double-click `index.html`.
 
 Select the GitHub repository `sodbileg0001-oss/lan-stats` in Vercel. Choose **Other** as the framework. `vercel.json` supplies `npm run build` and output directory `dist`. Future pushes to the connected production branch trigger a deployment.
 
-The build recreates `dist/` using only `index.html` and `assets/`. Original workbooks, developer utilities, tests, and the Excel-reading library are excluded from the published website.
+The build recreates `dist/` using `index.html`, `assets/`, and `Profile pictures/`. Original workbooks, developer utilities, tests, and the Excel-reading library are excluded from the published website.
+
+## Profile pictures
+
+Place JPG, PNG, or WebP files in `Profile pictures/` with filenames matching the player's workbook name, such as `Juugii.jpg`. The build matches filenames to player IDs and generates `assets/avatars.js`. Pictures appear throughout the site; players without one keep their initials. Custom avatars saved in a browser take precedence over these shared defaults. Original image files are preserved without modification.
 
 ## Update the published data
 
