@@ -9,7 +9,7 @@ A responsive CS2 analytics website built from your real Excel statistics, with a
 - A dedicated **Duels** page with direct kill-versus-death comparisons, a duel leaderboard, and an interactive matchup grid from the original **Duel sheet**.
 - Aim and utility analytics, charts, records, achievements, and match JSON downloads.
 
-The snapshot contains **16 players, 11 matches, 110 player-match records, and 5 maps**. Its duel sheet has **132 directional records across 66 pairings**, covering **1,734 direct encounters**. Missing dates, scores, round counts, MVP awards, and clutches remain unavailable.
+The snapshot contains **17 players, 14 matches, and 140 player-match records**. The source includes **5 named maps** and three match labels, **Map 1**, **Map 2**, and **Map 3**, whose actual map names have not been provided. Its duel sheet has **146 directional records across 73 pairings**, covering **2,214 direct encounters**. Missing dates, scores, round counts, MVP awards, and clutches remain unavailable.
 
 The website has no dataset-upload screen. New published matches are combined with previously saved browser records, and the published version takes precedence when explicit match IDs conflict. Profile customizations remain local to that browser. Decorative nickname differences between sheets are resolved only when a single match-profile name corresponds; original sheet names are preserved.
 

@@ -41,6 +41,8 @@ let browser;
     const playerIds = [...new Set(seed.matches.flatMap(m => m.rows.map(r => r.playerId)))];
     const rankedPlayers = C.rank(C.players(seed.matches), 'rating', 2).length;
     const duelPlayers = C.duelStandings(seed.duels).length;
+    const recentMatches = seed.matches.slice(-4);
+    const recentIconCount = recentMatches.filter(m => fs.existsSync('assets/map-icons/de_' + C.key(m.map).replace(/^de_/, '').replace(/\s+/g, '') + '.png')).length;
     const routes = ['home', 'players', 'matches', 'leaderboard', 'rivalries', 'analytics', 'records', 'duels', 'more', ...playerIds.map(id => 'player/' + id), ...seed.matches.map(m => 'match/' + m.id), ...[...new Set(seed.matches.map(m => m.map))].map(m => 'map/' + encodeURIComponent(m))];
     for (const width of [360, 390, 768, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
@@ -66,11 +68,12 @@ let browser;
       await page.evaluate(() => location.hash = 'home'); await page.waitForTimeout(50);
       const recent = page.locator('.panel').filter({ has: page.getByRole('heading', { name: 'Recent matches', exact: true }) });
       await recent.scrollIntoViewIfNeeded();
-      await page.waitForFunction(() => {
+      await page.waitForFunction(count => {
         const images = [...document.querySelectorAll('.match-row .map-badge img')];
-        return images.length === 4 && images.every(img => img.complete && img.naturalWidth > 0);
-      });
-      assert.equal(await recent.locator('.map-badge img').count(), 4);
+        return images.length === count && images.every(img => img.complete && img.naturalWidth > 0);
+      }, recentIconCount);
+      assert.equal(await recent.locator('.map-badge img').count(), recentIconCount);
+      assert.equal(await recent.locator('.map-thumb:not(.map-badge)').count(), recentMatches.length - recentIconCount);
       for (const src of await recent.locator('.map-badge img').evaluateAll(images => images.map(img => img.getAttribute('src')))) assert.ok(src.startsWith('assets/map-icons/de_'));
       assert.equal(await page.getByRole('group', { name: 'Choose a player', exact: true }).getByRole('button').count(), playerIds.length);
       for (const id of playerIds) {
