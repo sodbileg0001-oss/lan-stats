@@ -44,7 +44,7 @@
   try {
     const saved = JSON.parse(localStorage.getItem(STORE));
     if (saved?.version === 1 && Array.isArray(saved.matches) && saved.matches.every(m => Array.isArray(m.rows))) {
-      data.matches = C.merge(data.matches, saved.matches).matches;
+      data.matches = C.restorePublishedMatches(data.matches, saved.matches);
     }
     profiles = JSON.parse(localStorage.getItem(PROFILES)) || {};
   } catch { /* The published workbook remains available if storage is unavailable. */ }

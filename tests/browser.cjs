@@ -156,6 +156,17 @@ let browser;
     await page.evaluate(snapshot => localStorage.setItem('lan-league-data-v1', JSON.stringify({ version: 1, matches: snapshot.matches.slice(0, -1) })), seed);
     await page.reload();
     assert.equal(await page.locator('.stat-value').nth(1).textContent(), String(seed.matches.length));
+    // Older copies of renamed maps must not be appended as extra matches.
+    await page.evaluate(snapshot => {
+      const legacy = structuredClone(snapshot.matches);
+      legacy.slice(-3).forEach((match, i) => {
+        match.id = 'outdated-map-' + i; match.fingerprint = match.id; match.map = 'Old map label ' + i;
+        for (const row of match.rows) { row.map = match.map; row.raw.Map = match.map; }
+      });
+      localStorage.setItem('lan-league-data-v1', JSON.stringify({ version: 1, matches: legacy }));
+    }, seed);
+    await page.reload();
+    assert.equal(await page.locator('.stat-value').nth(1).textContent(), String(seed.matches.length));
     await page.evaluate(() => location.hash = 'duels');
     await page.waitForSelector('.duel-standings tbody tr');
     assert.equal(await page.locator('.duel-cell').count(), seed.duels.length);

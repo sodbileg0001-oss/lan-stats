@@ -54,6 +54,18 @@ test('same workbook cannot add duplicate matches, conflicts never overwrite sile
   const rejected = C.merge(data.matches, [changed]); assert.equal(rejected.conflicts.length, 1); assert.equal(rejected.matches[0].fingerprint, data.matches[0].fingerprint);
   assert.equal(C.merge(data.matches, [changed], true).matches[0].fingerprint, 'changed');
 });
+test('published map corrections replace stale inferred copies without dropping distinct local games', () => {
+  const saved = structuredClone(data.matches.at(-1));
+  saved.id = 'cached-map-label'; saved.fingerprint = 'cached-map-label'; saved.map = 'Old map label';
+  for (const row of saved.rows) { row.map = saved.map; row.raw.Map = saved.map; }
+  const before = JSON.stringify(saved);
+  assert.deepEqual(C.restorePublishedMatches(data.matches, [saved]), data.matches);
+  assert.equal(JSON.stringify(saved), before);
+  const explicit = structuredClone(saved); explicit.inferred = false; explicit.id = 'separate-explicit-game';
+  assert.equal(C.restorePublishedMatches(data.matches, [explicit]).length, data.matches.length + 1);
+  const distinct = structuredClone(saved); distinct.id = 'different-performances'; distinct.fingerprint = 'different-performances'; distinct.rows[0].kills++; distinct.rows[0].raw.Kills++;
+  assert.equal(C.restorePublishedMatches(data.matches, [distinct]).length, data.matches.length + 1);
+});
 test('head-to-head counts only opposing teams, never teammates', () => {
   const a = C.playerId('Juugii'), teammate = C.playerId('Tuvshoko'), opponent = C.playerId('Amka');
   assert.equal(C.headToHead(originalMatches, a, teammate).games.length, 0);

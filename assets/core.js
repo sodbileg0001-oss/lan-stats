@@ -165,5 +165,30 @@
     }
     return { matches, duplicates, conflicts };
   }
-  return { fields, percentageFields, finite, number, mean, sum, ratio, hash, key, playerId, mappings, parseRows, aggregate, players, rank, headToHead, parseDuelSheet, duelStandings, merge };
+  function restorePublishedMatches(published, saved) {
+    // Inferred IDs include map names. A corrected map label must not revive
+    // an older cached copy of the same complete player performances.
+    function performances(match) {
+      if (!match.inferred || !match.rows?.length) return null;
+      const rows = [];
+      for (const r of match.rows) {
+        if (!r.raw || typeof r.raw !== 'object') return null;
+        const values = Object.entries(r.raw);
+        if (!values.some(([h]) => fields.kills.includes(key(h))) || !values.some(([h]) => fields.deaths.includes(key(h)))) return null;
+        rows.push([r.playerId, r.team, r.result, values.filter(([h]) => !fields.map.includes(key(h))).sort(([a], [b]) => a.localeCompare(b))]);
+      }
+      return JSON.stringify(rows.sort((a, b) => a[0].localeCompare(b[0])));
+    }
+    const counts = new Map();
+    for (const match of published) {
+      const signature = performances(match);
+      if (signature) counts.set(signature, (counts.get(signature) || 0) + 1);
+    }
+    const additional = saved.filter(match => {
+      const signature = performances(match);
+      return !signature || counts.get(signature) !== 1;
+    });
+    return merge(published, additional).matches;
+  }
+  return { fields, percentageFields, finite, number, mean, sum, ratio, hash, key, playerId, mappings, parseRows, aggregate, players, rank, headToHead, parseDuelSheet, duelStandings, merge, restorePublishedMatches };
 });
