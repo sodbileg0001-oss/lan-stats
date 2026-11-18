@@ -28,8 +28,13 @@ test('every career profile agrees with its original source kills, deaths, damage
   }
 });
 test('displayed ratios are recalculated while contradictory original values are preserved', () => {
-  const r = data.matches[0].rows.find(r => r.player === 'Tuvshoko');
-  assert.equal(r.raw['K/D'], '0.00x'); assert.equal(C.aggregate([r]).kd, 21 / 11); assert.equal(r.rating, 1.82);
+  const source = data.matches[0].rows.find(r => r.player === 'Tuvshoko');
+  const raw = { ...source.raw, 'K/D': '0.00x', KDA: '0.00x' };
+  const r = C.parseRows([Object.keys(raw), Object.values(raw)]).matches[0].rows[0];
+  assert.equal(r.raw['K/D'], '0.00x'); assert.equal(r.raw.KDA, '0.00x');
+  assert.equal(C.aggregate([r]).kd, source.kills / source.deaths);
+  assert.equal(C.aggregate([r]).kda, (source.kills + source.assists) / source.deaths);
+  assert.equal(r.rating, source.rating);
 });
 test('zero and absent values are handled without NaN or invented metrics', () => {
   assert.equal(C.ratio(12, 0), Infinity); assert.equal(C.ratio(0, 0), null); assert.equal(C.ratio(null, 2), null);

@@ -5,6 +5,7 @@ A responsive CS2 analytics website built from your real Excel statistics, with a
 ## Included
 
 - Dashboard player picker, searchable directory, player profiles, and avatar customization.
+- Player profiles group performance by map, with win percentage, wins/losses/draws, appearance counts, K/D, KDA, ADR, rating, KAST, rifle headshots, and combat totals. Map comparisons and cards follow the selected match period. Unknown results stay outside the win-rate denominator; missing metrics remain unavailable.
 - Match history, mobile scorecards, map pages, rankings, and opposing-team match comparisons.
 - A dedicated **Duels** page with direct kill-versus-death comparisons, a duel leaderboard, and an interactive matchup grid from the original **Duel sheet**.
 - Aim and utility analytics, charts, records, achievements, and match JSON downloads.

@@ -10,6 +10,30 @@ const sharedAvatars = JSON.parse(JSON.stringify(context.window.LAN_AVATARS));
 const C = require('../assets/core.js');
 const W = require('../assets/workbook.js');
 const X = require('../vendor/xlsx.full.min.js');
+function expectedPlayerMaps(id, matches = seed.matches) {
+  const rows = matches.flatMap(m => m.rows.filter(r => r.playerId === id));
+  const sum = (rows, key) => { const values = rows.map(r => r[key]).filter(Number.isFinite); return values.length ? values.reduce((a, b) => a + b, 0) : null; };
+  const mean = (rows, key) => { const values = rows.map(r => r[key]).filter(Number.isFinite); return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null; };
+  const format = (n, digits = 0) => n === Infinity ? '∞' : n == null ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const ratio = (a, b) => a == null || b == null || (!a && !b) ? null : b ? a / b : Infinity;
+  const percent = n => n == null ? '—' : format(n, 1) + '%';
+  return [...new Set(rows.map(r => r.map))].sort().map(map => {
+    const group = rows.filter(r => r.map === map), wins = group.filter(r => r.result === 'WIN').length;
+    const known = group.filter(r => ['WIN', 'LOSS', 'DRAW'].includes(r.result)).length;
+    const kills = sum(group, 'kills'), deaths = sum(group, 'deaths'), assists = sum(group, 'assists');
+    return { map, metrics: {
+      matches: String(group.length), wins: String(wins), losses: String(group.filter(r => r.result === 'LOSS').length), draws: String(group.filter(r => r.result === 'DRAW').length),
+      winRate: percent(known ? wins / known * 100 : null), kd: format(ratio(kills, deaths), 2), kda: format(ratio(kills == null || assists == null ? null : kills + assists, deaths), 2),
+      adr: format(mean(group, 'adr'), 1), rating: format(mean(group, 'rating'), 2), kast: percent(mean(group, 'kast')), rifleHs: percent(mean(group, 'rifleHs')),
+      kills: format(kills), deaths: format(deaths), assists: format(assists)
+    } };
+  });
+}
+async function checkPlayerMaps(page, id, matches = seed.matches) {
+  const actual = await page.locator('.profile-map-card').evaluateAll(cards => cards.map(card => ({ map: card.dataset.map, metrics: Object.fromEntries([...card.querySelectorAll('[data-map-stat]')].map(el => [el.dataset.mapStat, el.textContent.trim()])) })).sort((a, b) => a.map < b.map ? -1 : a.map > b.map ? 1 : 0));
+  assert.deepEqual(actual, expectedPlayerMaps(id, matches), 'Player map totals or percentages disagree with source rows');
+  assert.equal(await page.locator('main .match-row').count(), 0, 'Profile statistics should be grouped by map');
+}
 const server = spawn(process.execPath, ['scripts/serve.cjs'], { stdio: 'pipe' });
 const ready = new Promise((resolve, reject) => { server.stdout.once('data', resolve); server.once('error', reject); server.once('exit', code => { if (code) reject(new Error('Preview server exited: ' + code)); }); });
 let browser;
@@ -54,6 +78,7 @@ let browser;
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
         assert.equal(overflow, false, `Horizontal overflow: ${hash} at ${width}px`);
         assert.ok(await page.locator('main h1').count(), `Missing heading: ${hash}`);
+        if (hash.startsWith('player/')) await checkPlayerMaps(page, hash.slice(7));
         if (hash.startsWith('player/') && sharedAvatars[hash.slice(7)]) {
           const picture = page.locator('.profile-hero .avatar img');
           assert.equal(await picture.getAttribute('src'), sharedAvatars[hash.slice(7)]);
@@ -99,8 +124,50 @@ let browser;
       if (width === 360 || width === 1440) {
         await page.screenshot({ path: `test-results/dashboard-${width}.png`, fullPage: true, animations: 'disabled' });
         await page.locator('.player-picker').screenshot({ path: `test-results/player-picker-${width}.png`, animations: 'disabled' });
+        await page.evaluate(id => location.hash = 'player/' + id, playerIds[0]);
+        await page.waitForSelector('.profile-map-card');
+        await page.locator('.profile-map-panel').screenshot({ path: `test-results/profile-maps-${width}.png`, animations: 'disabled' });
       }
     }
+    const recentPlayer = seed.matches.at(-1).rows[0].playerId;
+    await page.evaluate(id => location.hash = 'player/' + id, recentPlayer);
+    await page.waitForSelector('.profile-map-card');
+    await page.locator('#window-filter').selectOption('5');
+    await checkPlayerMaps(page, recentPlayer, seed.matches.slice(-5));
+    await page.getByRole('button', { name: 'Win percentage', exact: true }).click();
+    const comparison = page.locator('.profile-map-comparison');
+    const expectedPercentages = expectedPlayerMaps(recentPlayer, seed.matches.slice(-5));
+    for (const item of expectedPercentages.filter(item => item.metrics.winRate !== '—')) {
+      const bar = comparison.locator('.bars>div').filter({ has: page.getByText(item.map, { exact: true }) });
+      assert.equal(await bar.locator('.bar-label b').textContent(), item.metrics.winRate);
+      assert.ok(Math.abs(await bar.locator('.bar-fill').evaluate(el => Number.parseFloat(el.style.width)) - Number.parseFloat(item.metrics.winRate)) < .1, 'Win percentage bars must use a 0–100 scale');
+    }
+    await page.locator('#window-filter').selectOption('0');
+    await checkPlayerMaps(page, recentPlayer);
+    const mapEdgeData = structuredClone(seed), edgePlayer = seed.matches[0].rows[0].playerId;
+    mapEdgeData.matches = [0, 1, 2].map(index => {
+      const match = structuredClone(seed.matches[0]);
+      match.id = 'map-edge-case-' + index; match.map = 'Nuke'; match.order = index + 1;
+      const team = match.rows.find(r => r.playerId === edgePlayer).team;
+      match.teams.forEach(t => { t.result = index === 2 ? null : index === 1 ? 'DRAW' : t.name === team ? 'WIN' : 'LOSS'; });
+      match.rows.forEach(row => {
+        row.map = 'Nuke'; row.raw.Map = 'Nuke'; row.result = match.teams.find(t => t.name === row.team).result;
+        if (row.playerId === edgePlayer) { row.deaths = 0; row.adr = null; row.raw.Deaths = 0; row.raw.ADR = null; }
+      });
+      return match;
+    });
+    mapEdgeData.duels = [];
+    const mapEdgePage = await browser.newPage();
+    await mapEdgePage.route('https://fonts.googleapis.com/**', r => r.abort());
+    await mapEdgePage.route('**/assets/data.js*', r => r.fulfill({ contentType: 'text/javascript', body: W.serialize(mapEdgeData) }));
+    await mapEdgePage.goto('http://127.0.0.1:3000/#player/' + edgePlayer);
+    await mapEdgePage.waitForSelector('.profile-map-card');
+    await checkPlayerMaps(mapEdgePage, edgePlayer, mapEdgeData.matches);
+    assert.equal(await mapEdgePage.locator('[data-map-stat="winRate"]').textContent(), '50.0%');
+    assert.equal(await mapEdgePage.locator('[data-map-stat="kd"]').textContent(), '∞');
+    assert.equal(await mapEdgePage.locator('[data-map-stat="adr"]').textContent(), '—');
+    assert.ok((await mapEdgePage.locator('.profile-map-result-note').textContent()).includes('1 unavailable'));
+    await mapEdgePage.close();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => location.hash = 'leaderboard');
     const categories = await page.locator('#ranking-metric option').evaluateAll(options => options.map(o => o.value));
@@ -274,6 +341,6 @@ let browser;
     assert.deepEqual(downloaded.SheetNames, ['Database', 'Duel sheet']);
     assert.equal(X.utils.sheet_to_json(downloaded.Sheets.Database, { header: 1, blankrows: false })[0].length, 33);
     assert.deepEqual(errors, []);
-    console.log(`Browser checks passed: ${routes.length} routes at four widths; rankings, duels, Excel validation and preview, publishing authorization, deployment waiting, refresh for another visitor, two-sheet download, and profile persistence; no JavaScript errors. GitHub writes mocked.`);
+    console.log(`Browser checks passed: ${routes.length} routes at four widths; map aggregates for every player, period filters, win-percentage charts, unknown results and missing stats, rankings, duels, Excel publishing, shared refresh, and profile persistence; no JavaScript errors. GitHub writes mocked.`);
   } finally { if (browser) await browser.close(); server.kill(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

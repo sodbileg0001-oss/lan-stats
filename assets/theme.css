@@ -320,6 +320,48 @@ dialog::backdrop { background: #050910b8; }
   *, *:before, *:after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
 
+/* Player profiles combine all appearances on each map. */
+.profile-map-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 18px; }
+.profile-map-card { min-width: 0; padding: 20px; background: linear-gradient(145deg, #1b2b42, #152235); border: 1px solid #355071; border-radius: 12px; }
+.profile-map-heading { display: flex; align-items: center; gap: 13px; }
+.profile-map-heading>div { min-width: 0; }
+.profile-map-heading .map-thumb { width: 54px; height: 54px; flex-shrink: 0; }
+.profile-map-heading h3 { font-size: 21px; line-height: 1.25; overflow-wrap: anywhere; }
+.profile-map-heading h3 a:hover { color: #b8d9ff; }
+.profile-map-heading p { margin-top: 5px; color: var(--muted); font-size: 12px; }
+.profile-map-win { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin: 23px 0 16px; }
+.profile-map-win>div:first-child>span { display: block; font-size: 10px; color: var(--muted); letter-spacing: .5px; }
+.profile-map-win strong { display: block; color: #b1d5ff; font-size: 36px; font-weight: 650; line-height: 1.2; letter-spacing: -1px; margin-top: 4px; }
+.profile-map-results { display: flex; gap: 15px; text-align: center; }
+.profile-map-results b { display: block; font-size: 19px; font-weight: 600; }
+.profile-map-results span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.profile-map-results .wins b { color: var(--green); }
+.profile-map-results .losses b { color: var(--red); }
+.profile-map-results .draws b { color: var(--gold); }
+.profile-map-result-bar { display: flex; height: 6px; border-radius: 6px; overflow: hidden; background: #35445b; }
+.profile-map-result-bar .wins { background: #60d5a0; }
+.profile-map-result-bar .losses { background: #f47e91; }
+.profile-map-result-bar .draws { background: #e7bd71; }
+.profile-map-result-note { font-size: 11px; color: var(--muted); margin-top: 8px; }
+.profile-map-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 10px; margin-top: 21px; }
+.profile-map-metrics dt { font-size: 11px; line-height: 1.5; color: var(--muted); }
+.profile-map-metrics dd { font-size: 20px; font-weight: 600; margin: 3px 0 0; }
+.profile-map-metrics small { font-size: 10px; color: var(--muted); }
+.profile-map-totals { display: flex; flex-wrap: wrap; gap: 7px 12px; border-top: 1px solid #355071; margin-top: 20px; padding-top: 13px; font-size: 11px; color: var(--muted); }
+.profile-map-totals b { color: #e2eeff; font-weight: 550; }
+.profile-map-method { font-size: 12px; color: var(--muted); line-height: 1.8; margin-top: 18px; }
+.profile-map-comparison .tabs { flex-wrap: wrap; gap: 16px; }
+.profile-map-comparison .bar-label { font-size: 13px; }
+.profile-map-comparison .bar-fill { min-width: 0; }
+@media (max-width: 760px) {
+  .profile-map-card { padding: 18px; }
+  .profile-map-grid { gap: 15px; }
+  .profile-map-results { gap: 12px; }
+  .profile-map-win { gap: 10px; }
+  .profile-map-win strong { font-size: 34px; }
+  .profile-map-comparison .tabs { gap: 14px; }
+}
+
 /* Excel publishing follows the same dark, readable surfaces as the stats. */
 .import-page { max-width: 1120px; min-width: 0; }
 .import-intro .notice { margin-bottom: 14px; }
