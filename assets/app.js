@@ -33,8 +33,8 @@
   const icon = (name, cls = '') => '<svg class="icon ' + cls + '" viewBox="0 0 24 24" aria-hidden="true">' + (paths[name] || paths.target) + '</svg>';
   const links = [['home', 'Overview', 'home'], ['players', 'Players', 'users'], ['matches', 'Matches', 'matches'], ['leaderboard', 'Leaderboard', 'trophy'], ['rivalries', 'Head-to-head', 'swords'], ['duels', 'Duels', 'crosshair'], ['analytics', 'Analytics', 'chart'], ['records', 'Records & awards', 'medal']];
   const colors = ['#2563eb', '#0891b2', '#ef4444', '#0d9488', '#e11d48', '#16a34a', '#d97706', '#0284c7'];
-  const mapColors = { Mirage: '#7e684e', Inferno: '#755046', Ancient: '#426450', 'Dust 2': '#8d784d', Anubis: '#8c7657' };
-  const mapIcons = { mirage: 'de_mirage', inferno: 'de_inferno', ancient: 'de_ancient', dust2: 'de_dust2', anubis: 'de_anubis' };
+  const mapColors = { Mirage: '#7e684e', Inferno: '#755046', Ancient: '#426450', 'Dust 2': '#8d784d', Anubis: '#8c7657', Nuke: '#4e6980' };
+  const mapIcons = { mirage: 'de_mirage', inferno: 'de_inferno', ancient: 'de_ancient', dust2: 'de_dust2', anubis: 'de_anubis', nuke: 'de_nuke' };
   const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
   let renderedRoute = '', entranceObserver = null, motionFrame = 0;
   let data = structuredClone(window.LAN_DATA), profiles = {}, roster = [], allRoster = [];
