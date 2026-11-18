@@ -9,9 +9,9 @@ A responsive CS2 analytics website built from your real Excel statistics, with a
 - A dedicated **Duels** page with direct kill-versus-death comparisons, a duel leaderboard, and an interactive matchup grid from the original **Duel sheet**.
 - Aim and utility analytics, charts, records, achievements, and match JSON downloads.
 
-The snapshot contains **18 players, 19 matches, and 190 player-match records**. The source has **5 named maps** and five labels, **Map 1–5**, whose actual map names have not been provided. Its duel sheet has **170 directional records across 85 pairings**, covering **2,982 direct encounters**. Missing dates, scores, round counts, MVP awards, and clutches remain unavailable.
+The snapshot contains **18 players, 19 matches, and 190 player-match records**. Map names come directly from Database. Its duel sheet has **170 directional records across 85 pairings**, covering **2,982 direct encounters**. Missing dates, scores, round counts, MVP awards, and clutches remain unavailable.
 
-The website has no dataset-upload screen. New published matches are combined with previously saved browser records, and the published version takes precedence when explicit match IDs conflict. A map-label correction also replaces a stale inferred copy when all original player performances match one published game; distinct local games remain available. Profile customizations remain local to that browser. Decorative nickname differences between sheets are resolved only when a single match-profile name corresponds; original sheet names are preserved.
+The **Import Excel** page reads Database and Duel sheet, previews the workbook, and publishes the complete dataset to GitHub for everyone. The shared dataset is authoritative; old browser snapshots do not bring removed records back. Profile customizations remain local to each browser. Decorative nickname differences between sheets are resolved only when a single match-profile name corresponds; original sheet names are preserved.
 
 ## Run locally
 
@@ -33,6 +33,18 @@ Place JPG, PNG, or WebP files in `Profile pictures/` with filenames matching the
 
 ## Update the published data
 
+Open **Import Excel** in the sidebar, or **More → Import Excel** on mobile. Choose an `.xlsx` or `.xls` file containing **Database** and **Duel sheet** (50 MB maximum). The download button provides a blank two-sheet template with every supported website input and the current duel roster.
+
+Review the incoming match, player, and duel totals. The workbook **replaces the shared dataset**, so include all history you want to keep. Invalid player rows, duplicate match IDs, unknown duel names, and contradictory reciprocal scores block publishing.
+
+Create a [fine-grained GitHub token](https://github.com/settings/personal-access-tokens/new) as `sodbileg0001-oss`, select only `lan-stats`, and grant **Contents: Read and write**. Enter it on the import page and choose **Publish for everyone**. The browser sends it directly to GitHub for that operation; the site never stores the token. No Vercel secrets or database setup is required. Publishing updates only `assets/data.js` on `main`, using its existing file SHA to reject concurrent changes. A newer dataset also blocks an upload prepared against an older version.
+
+The commit triggers the existing Vercel Git deployment. A saved commit is shown as **waiting**, not live, until the deployed data arrives. Open pages check the shared data every 30 seconds and also when returning to the tab. There is no local-only success state. Offline or failed deployments keep the last available statistics visible. If publishing cannot be confirmed after a network error, check GitHub before retrying.
+
+The original Excel file is read in a browser worker; it is not uploaded to GitHub. Only its parsed Database and Duel sheet data is published. Extra workbook sheets are ignored. Dates can be ISO text or Excel date cells, percentages use 0–100, and duel scores must be text such as `11:7`.
+
+You can also update from your computer:
+
 The original workbook stays on your computer and is ignored by Git. Regenerate the shared snapshot after updating it:
 
 ```sh
@@ -42,7 +54,7 @@ npm run data
 
 The developer utility reads **Database** and **Duel sheet** and writes `assets/data.js`. Commit and push that file to update the statistics. Original match columns and duel score strings are retained. Match groups without explicit IDs follow sequential map changes or repeated players; check the resulting records against the workbook.
 
-SheetJS is used only by this local developer utility, not by the website.
+SheetJS is bundled locally for the Excel worker and the developer utility. The parser loads only when importing a workbook or downloading a template.
 
 ## Statistics
 
@@ -62,11 +74,11 @@ npm run build
 node tests/browser.cjs
 ```
 
-Browser checks use Chrome at `C:/Program Files/Google/Chrome/Application/chrome.exe`; set `CHROME_PATH` for another location. They cover pages at 360, 390, 768, and 1440 px, player selection, every leaderboard category, duel scores, grid selection, profile persistence, and removal of upload controls. Screenshots go to ignored `test-results/`.
+Browser checks use Chrome at `C:/Program Files/Google/Chrome/Application/chrome.exe`; set `CHROME_PATH` for another location. They cover pages at 360, 390, 768, and 1440 px, player selection, leaderboard categories, duel scores, grid selection, profile persistence, Excel validation, publishing failures, and shared refresh. Publishing checks mock GitHub writes and do not change live statistics. Screenshots go to ignored `test-results/`.
 
 ## Files
 
-`index.html` is the entry point. `assets/core.js` owns calculations and source parsing; `assets/app.js` owns interactions; `assets/styles.css` owns layout; `assets/theme.css` defines the dark graphite palette, readable text, and interaction states; `assets/data.js` contains the workbook snapshot. The local-only SheetJS library and license remain in `vendor/`. Fonts use Google Fonts with system fallbacks.
+`index.html` is the entry point. `assets/core.js` owns calculations and source parsing; `assets/workbook.js` validates complete workbooks; `assets/import-worker.js` reads Excel off the main thread; `assets/publisher.js` performs authenticated GitHub updates; `assets/app.js` owns interactions and shared-data refresh. `assets/styles.css` owns layout; `assets/theme.css` defines the dark graphite palette; `assets/data.js` contains the shared snapshot. The SheetJS library and license are in `vendor/`. Fonts use Google Fonts with system fallbacks.
 
 ## Icons and motion
 

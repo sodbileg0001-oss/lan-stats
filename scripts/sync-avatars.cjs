@@ -14,13 +14,14 @@ function syncAvatars() {
   for (const file of files) {
     const name = path.parse(file.name).name;
     const matches = players.filter(p => LAN.key(p.name) === LAN.key(name));
+    if (!matches.length) continue;
     if (matches.length !== 1) throw new Error('Profile picture must match one player name: ' + file.name);
     const player = matches[0];
     if (pictures[player.id]) throw new Error('Multiple profile pictures for ' + player.name);
     pictures[player.id] = ['Profile pictures', file.name].map(encodeURIComponent).join('/');
   }
   fs.writeFileSync(path.join(root, 'assets/avatars.js'), 'window.LAN_AVATARS = ' + JSON.stringify(pictures).replace(/</g, '\\u003c') + ';\n');
-  return files.length;
+  return Object.keys(pictures).length;
 }
 
 module.exports = syncAvatars;

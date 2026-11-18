@@ -1,8 +1,8 @@
 /* LAN League — buildless, data-driven CS2 analytics. */
 (() => {
   'use strict';
-  const C = window.LAN;
-  const STORE = 'lan-league-data-v1', PROFILES = 'lan-league-profiles-v1';
+  const C = window.LAN, W = window.LANWorkbook;
+  const PROFILES = 'lan-league-profiles-v1';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n, d = 0) => n === Infinity ? '∞' : C.finite(n) ? n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
   const pct = n => C.finite(n) ? fmt(n, 1) + '%' : '—';
@@ -16,6 +16,7 @@
     chart: '<path d="M4 3v17h17M8 15l4-5 4 2 5-7"/>',
     medal: '<circle cx="12" cy="9" r="6"/><path d="m8 14-1 8 5-3 5 3-1-8M10 9l1 1 3-3"/>',
     download: '<path d="M12 3v13m-5-5 5 5 5-5M4 15v5h16v-5"/>',
+    upload: '<path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"/>',
     search: '<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>',
     arrow: '<path d="M4 12h16m-5-5 5 5-5 5"/>',
     chevron: '<path d="m9 5 7 7-7 7"/>',
@@ -31,7 +32,7 @@
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
   };
   const icon = (name, cls = '') => '<svg class="icon ' + cls + '" viewBox="0 0 24 24" aria-hidden="true">' + (paths[name] || paths.target) + '</svg>';
-  const links = [['home', 'Overview', 'home'], ['players', 'Players', 'users'], ['matches', 'Matches', 'matches'], ['leaderboard', 'Leaderboard', 'trophy'], ['rivalries', 'Head-to-head', 'swords'], ['duels', 'Duels', 'crosshair'], ['analytics', 'Analytics', 'chart'], ['records', 'Records & awards', 'medal']];
+  const links = [['home', 'Overview', 'home'], ['players', 'Players', 'users'], ['matches', 'Matches', 'matches'], ['leaderboard', 'Leaderboard', 'trophy'], ['rivalries', 'Head-to-head', 'swords'], ['duels', 'Duels', 'crosshair'], ['analytics', 'Analytics', 'chart'], ['records', 'Records & awards', 'medal'], ['import', 'Import Excel', 'upload']];
   const colors = ['#2563eb', '#0891b2', '#ef4444', '#0d9488', '#e11d48', '#16a34a', '#d97706', '#0284c7'];
   const mapColors = { Mirage: '#7e684e', Inferno: '#755046', Ancient: '#426450', 'Dust 2': '#8d784d', Anubis: '#8c7657', Nuke: '#4e6980' };
   const mapIcons = { mirage: 'de_mirage', inferno: 'de_inferno', ancient: 'de_ancient', dust2: 'de_dust2', anubis: 'de_anubis', nuke: 'de_nuke' };
@@ -40,12 +41,10 @@
   let data = structuredClone(window.LAN_DATA), profiles = {}, roster = [], allRoster = [];
   let selectedPlayerId = '';
   let route = 'home', routeId = '', windowSize = 0, metric = 'rating', minMatches = 2, chartMetric = 'rating', playerQuery = '', matchMap = '', matchPage = 0, compareA = '', compareB = '', duelA = '', duelB = '';
-  const duelEntries = window.LAN_DATA.duels || [];
+  let duelEntries = window.LAN_DATA.duels || [];
+  let publishedRevision = W.revision(window.LAN_DATA), checkingUpdate = false;
+  let importState = { phase: 'idle', data: null, error: '', filename: '', baseRevision: '', commitUrl: '', startedAt: 0 };
   try {
-    const saved = JSON.parse(localStorage.getItem(STORE));
-    if (saved?.version === 1 && Array.isArray(saved.matches) && saved.matches.every(m => Array.isArray(m.rows))) {
-      data.matches = C.restorePublishedMatches(data.matches, saved.matches);
-    }
     profiles = JSON.parse(localStorage.getItem(PROFILES)) || {};
   } catch { /* The published workbook remains available if storage is unavailable. */ }
   const viewMatches = () => windowSize ? data.matches.slice(-windowSize) : data.matches;
@@ -103,14 +102,14 @@
     const sorted = [...m.rows].filter(r => C.finite(r.rating)).sort((a, b) => b.rating - a.rating), top = sorted[0];
     const winner = m.teams.find(t => t.result === 'WIN');
     const score = m.teams.every(t => C.finite(t.roundsWon)) ? m.teams.map(t => t.roundsWon).join(' : ') : (winner?.name || 'Result unavailable') + (winner ? ' won' : '');
-    return '<a class="match-row" href="#match/' + esc(m.id) + '">' + mapThumb(m.map) + '<div class="match-info"><strong>' + esc(m.map) + ' <span class="muted">/</span> Match ' + (i ?? data.matches.indexOf(m) + 1) + '</strong><small>' + m.rows.length + ' players · ' + (m.date ? esc(m.date.slice(0, 10)) : 'Date unavailable') + '</small></div><div class="match-result">' + esc(score) + '<small>' + (top ? esc(top.player) + ' · ' + fmt(top.rating, 2) : 'Rating unavailable') + '</small></div>' + icon('chevron') + '</a>';
+    return '<a class="match-row" href="#match/' + encodeURIComponent(m.id) + '">' + mapThumb(m.map) + '<div class="match-info"><strong>' + esc(m.map) + ' <span class="muted">/</span> Match ' + (i ?? data.matches.indexOf(m) + 1) + '</strong><small>' + m.rows.length + ' players · ' + (m.date ? esc(m.date.slice(0, 10)) : 'Date unavailable') + '</small></div><div class="match-result">' + esc(score) + '<small>' + (top ? esc(top.player) + ' · ' + fmt(top.rating, 2) : 'Rating unavailable') + '</small></div>' + icon('chevron') + '</a>';
   }
   function records(matches = viewMatches()) {
     const rows = matches.flatMap(m => m.rows.map(r => ({ ...r, match: m })));
     const definitions = [['Most kills', 'kills', 'crosshair', 0], ['Highest ADR', 'adr', 'bolt', 0], ['Highest HLTV 2.1', 'rating', 'trophy', 2], ['Highest K/D', 'kd', 'target', 2], ['Highest KAST', 'kast', 'shield', 0], ['Highest rifle HS%', 'rifleHs', 'target', 0], ['Most opening kills', 'opening', 'swords', 0], ['Most trade kills', 'trades', 'users', 0], ['Most flash assists', 'flashes', 'bolt', 0], ['Most grenade damage', 'grenade', 'flame', 0], ['Most clutches', 'clutches', 'medal', 0], ['Most MVPs', 'mvp', 'trophy', 0]];
     return definitions.map(([label, field, ico, decimals]) => { const valid = rows.map(r => ({ ...r, val: field === 'kd' ? C.ratio(r.kills, r.deaths) : r[field] })).filter(r => r.val != null); const max = valid.length ? Math.max(...valid.map(r => r.val)) : null; const winners = valid.filter(r => r.val === max); return { label, field, ico, decimals, value: max, winners }; });
   }
-  function recordCards(list) { return list.map(r => '<div class="record-card ' + (r.value == null ? 'empty-record' : '') + '"><span class="record-icon">' + icon(r.ico) + '</span><div class="upper">' + esc(r.label) + '</div><div class="record-value">' + fmt(r.value, r.decimals) + (['kast', 'rifleHs'].includes(r.field) && r.value != null ? '%' : '') + '</div><div class="record-holder">' + (r.winners.length ? r.winners.map(w => '<a href="#player/' + esc(w.playerId) + '">' + esc(w.player) + '</a>').join(' · ') : 'Not enough match data yet.') + '</div><div class="record-map">' + (r.winners[0] ? '<a href="#match/' + r.winners[0].match.id + '">' + esc(r.winners[0].map) + ' · Match ' + (data.matches.indexOf(r.winners[0].match) + 1) + '</a> · single match' : 'This field is absent from the workbook.') + '</div></div>').join(''); }
+  function recordCards(list) { return list.map(r => '<div class="record-card ' + (r.value == null ? 'empty-record' : '') + '"><span class="record-icon">' + icon(r.ico) + '</span><div class="upper">' + esc(r.label) + '</div><div class="record-value">' + fmt(r.value, r.decimals) + (['kast', 'rifleHs'].includes(r.field) && r.value != null ? '%' : '') + '</div><div class="record-holder">' + (r.winners.length ? r.winners.map(w => '<a href="#player/' + esc(w.playerId) + '">' + esc(w.player) + '</a>').join(' · ') : 'Not enough match data yet.') + '</div><div class="record-map">' + (r.winners[0] ? '<a href="#match/' + encodeURIComponent(r.winners[0].match.id) + '">' + esc(r.winners[0].map) + ' · Match ' + (data.matches.indexOf(r.winners[0].match) + 1) + '</a> · single match' : 'This field is absent from the workbook.') + '</div></div>').join(''); }
   function playerPreview(p) {
     const s = p.stats;
     return '<div class="hero-player-identity">' + avatar(p, 'lg') + '<div><span class="hero-player-label">CAREER SNAPSHOT</span><h3 class="hero-player-name">' + esc(displayName(p)) + '</h3><p>' + s.matches + ' matches · ' + s.wins + ' wins · ' + s.losses + ' losses</p></div></div>' +
@@ -218,16 +217,93 @@
   }
   function recordsPage() {
     const achievements = [['Damage Dealer', 'Single match: imported ADR ≥ 100', 'adr', 100], ['Entry King', 'Single match: ≥ 5 opening kills', 'opening', 5], ['Support Spark', 'Single match: ≥ 3 flash assists', 'flashes', 3], ['Utility Master', 'Single match: ≥ 250 grenade damage', 'grenade', 250]];
-    return heading('For the record.', 'The performances your lobby will remember.', windowSelect()) + '<div class="records-grid full-records">' + recordCards(records()) + '</div><div class="section-title"><div><h2>Career milestones</h2><p>Transparent criteria. Earned in real matches.</p></div></div><div class="records-grid">' + roster.filter(p => p.stats.kills >= 100).map(p => '<div class="record-card"><span class="record-icon">' + icon('crosshair') + '</span><div class="upper">100 CAREER KILLS</div><div class="record-value">' + fmt(p.stats.kills) + '</div><div class="record-holder">' + esc(displayName(p)) + '</div><div class="record-map">Criterion: total recorded kills ≥ 100</div></div>').join('') + (roster.some(p => p.stats.kills >= 100) ? '' : empty('No milestones unlocked yet.', 'Reach 100 total recorded kills to earn the first career milestone.')) + '</div><div class="section-title"><div><h2>Single-match awards</h2><p>Each award is tied to one qualifying performance.</p></div></div><div class="grid-players">' + achievements.map(([name, criteria, field, cutoff]) => { const qualified = viewMatches().flatMap(m => m.rows.filter(r => C.finite(r[field]) && r[field] >= cutoff).map(r => ({ ...r, match: m }))); return '<div class="record-card"><span class="record-icon">' + icon('medal') + '</span><h3>' + name + '</h3><p class="local-note">' + criteria + '</p><div style="margin-top:15px;font-size:10px;color:var(--muted)">' + (qualified.map(r => '<a href="#match/' + r.match.id + '">' + esc(r.player) + ' · ' + esc(r.map) + '</a>').join('<br>') || 'No qualifying matches yet.') + '</div></div>'; }).join('') + '</div>';
+    return heading('For the record.', 'The performances your lobby will remember.', windowSelect()) + '<div class="records-grid full-records">' + recordCards(records()) + '</div><div class="section-title"><div><h2>Career milestones</h2><p>Transparent criteria. Earned in real matches.</p></div></div><div class="records-grid">' + roster.filter(p => p.stats.kills >= 100).map(p => '<div class="record-card"><span class="record-icon">' + icon('crosshair') + '</span><div class="upper">100 CAREER KILLS</div><div class="record-value">' + fmt(p.stats.kills) + '</div><div class="record-holder">' + esc(displayName(p)) + '</div><div class="record-map">Criterion: total recorded kills ≥ 100</div></div>').join('') + (roster.some(p => p.stats.kills >= 100) ? '' : empty('No milestones unlocked yet.', 'Reach 100 total recorded kills to earn the first career milestone.')) + '</div><div class="section-title"><div><h2>Single-match awards</h2><p>Each award is tied to one qualifying performance.</p></div></div><div class="grid-players">' + achievements.map(([name, criteria, field, cutoff]) => { const qualified = viewMatches().flatMap(m => m.rows.filter(r => C.finite(r[field]) && r[field] >= cutoff).map(r => ({ ...r, match: m }))); return '<div class="record-card"><span class="record-icon">' + icon('medal') + '</span><h3>' + name + '</h3><p class="local-note">' + criteria + '</p><div style="margin-top:15px;font-size:10px;color:var(--muted)">' + (qualified.map(r => '<a href="#match/' + encodeURIComponent(r.match.id) + '">' + esc(r.player) + ' · ' + esc(r.map) + '</a>').join('<br>') || 'No qualifying matches yet.') + '</div></div>'; }).join('') + '</div>';
+  }
+  function importPage() {
+    const state = importState, busy = ['reading', 'publishing', 'waiting'].includes(state.phase);
+    const current = '<div class="import-current"><span class="status-dot"></span><span>Shared dataset: <strong>' + data.matches.length + ' matches</strong> · ' + allRoster.length + ' players</span></div>';
+    let content = '<div class="import-intro">' + notice('<strong>Update the whole lobby.</strong> Choose your Excel file, review the stats, then publish. Everyone receives the update after the new version goes live. Open pages check automatically every 30 seconds.') + current + '</div>';
+    if (!['waiting', 'live'].includes(state.phase)) {
+      content += '<section class="excel-drop panel' + (busy ? ' is-busy' : '') + '" id="excel-dropzone" aria-busy="' + busy + '"><span class="import-symbol">' + icon('upload') + '</span><h2>' + (state.phase === 'reading' ? 'Reading your workbook…' : 'Bring the latest numbers.') + '</h2><p>Drop an Excel file here, or choose one below.<br>Use the <strong>Database</strong> and <strong>Duel sheet</strong> sheets.</p><label class="btn primary' + (busy ? ' disabled' : '') + '" for="excel-file">' + icon('upload') + 'Choose Excel file</label><input class="sr-only" type="file" id="excel-file" accept=".xlsx,.xls"' + (busy ? ' disabled' : '') + '><small>.xlsx or .xls · up to 50 MB</small></section>';
+    }
+    if (state.error) content += '<div class="import-error" role="alert">' + icon('info') + '<p>' + esc(state.error) + '</p></div>';
+    if (state.data && ['preview', 'publishing'].includes(state.phase)) {
+      const incoming = state.data, players = C.players(incoming.matches), count = incoming.matches.reduce((n, m) => n + m.rows.length, 0);
+      content += '<section class="import-preview" aria-labelledby="import-preview-title"><div class="section-title"><div><h2 id="import-preview-title">Review your workbook</h2><p class="import-filename">' + esc(state.filename) + '</p></div>' + pill('READY TO PUBLISH', 'green') + '</div><div class="stats-grid">' + stat('Matches', fmt(incoming.matches.length), 'Currently ' + data.matches.length, 'matches') + stat('Players', fmt(players.length), 'Currently ' + allRoster.length, 'users') + stat('Player records', fmt(count), 'One player per match', 'chart') + stat('Duel records', fmt(incoming.duels.length), 'Direct kills and deaths', 'swords') + '</div>';
+      if (incoming.matches.length < data.matches.length || (!incoming.duels.length && duelEntries.length)) content += '<div class="import-warning">This file contains ' + incoming.matches.length + ' matches and ' + incoming.duels.length + ' duel records. Publishing removes any existing records missing from this file.</div>';
+      if (incoming.warnings.length) content += '<details class="import-details"><summary>Workbook notes (' + incoming.warnings.length + ')</summary><ul>' + incoming.warnings.map(w => '<li>' + esc(w) + '</li>').join('') + '</ul></details>';
+      content += '<details class="import-details"><summary>Review all ' + incoming.matches.length + ' matches</summary><div class="table-wrap import-match-preview"><table class="table"><thead><tr><th>Match</th><th>Map</th><th>Players</th><th>Winning team</th></tr></thead><tbody>' + incoming.matches.map((m, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(m.map) + '</td><td>' + m.rows.length + '</td><td>' + esc(m.teams.find(t => t.result === 'WIN')?.name || 'Draw / unavailable') + '</td></tr>').join('') + '</tbody></table></div></details>';
+      content += panel('Publish for everyone', 'upload', '<form id="publish-form" class="panel-body import-publish"><p>This file replaces the shared dataset. Include all match history you want to keep. Missing statistics stay unavailable.</p><div class="field"><label for="publishing-token">GitHub publishing token</label><input class="text-input" id="publishing-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" required placeholder="Your GitHub access token"' + (busy ? ' disabled' : '') + ' aria-describedby="publishing-help"></div><p id="publishing-help">Use a fine-grained token for <strong>lan-stats</strong> with <strong>Contents: Read and write</strong>. It goes directly to GitHub and is never saved in this site. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a publishing token ' + icon('arrow') + '</a></p><button class="btn primary" type="submit"' + (busy ? ' disabled' : '') + '>' + icon('upload') + (state.phase === 'publishing' ? 'Publishing…' : 'Publish for everyone') + '</button></form>') + '</section>';
+    }
+    if (['waiting', 'live'].includes(state.phase)) content += '<section class="panel import-result" role="status"><span class="import-symbol">' + icon(state.phase === 'live' ? 'shield' : 'clock') + '</span><h2>' + (state.phase === 'live' ? 'The lobby is up to date.' : 'Saved. Waiting for the site to update.') + '</h2><p>' + (state.phase === 'live' ? 'The shared statistics are live. Everyone visiting the site receives this workbook.' : 'Your workbook has been saved to GitHub. Vercel is publishing the new version. This page will update automatically when it is ready.') + '</p><div class="import-actions">' + btn('View dashboard', '#home', 'chart') + '<a class="btn ghost" href="' + esc(state.commitUrl) + '" target="_blank" rel="noopener noreferrer">View saved update ' + icon('arrow') + '</a><button class="btn ghost" data-action="new-import">Import another file</button></div><p class="local-note">' + (state.phase === 'waiting' && Date.now() - state.startedAt > 180000 ? 'Still waiting? Check the latest deployment in Vercel. Your saved workbook remains in GitHub.' : 'Updates appear after a successful Vercel deployment.') + '</p></section>';
+    content += '<div class="import-help"><h2>Your two-sheet format</h2><div class="import-help-grid"><div><strong>Database</strong><p>One row per player per match. Keep each game together. Use the same player names every time. K/D, KDA, rankings, and averages are calculated for you.</p></div><div><strong>Duel sheet</strong><p>The row player’s kills : deaths against the column player. Enter scores as text, such as 11:7. Reverse the score in the opposite cell. Leave unknown scores blank.</p></div></div></div>';
+    return heading('Import Excel', 'Fresh matches. Updated stats. One shared lobby.', '<button class="btn ghost" data-action="download-template">' + icon('download') + 'Download template</button>') + '<div class="import-page">' + content + '</div>';
+  }
+  function runWorkbookWorker(message, transfers = []) {
+    return new Promise((resolve, reject) => {
+      let worker;
+      try { worker = new Worker('assets/import-worker.js'); } catch { reject(new Error('Open the website through Vercel or the local server to import Excel.')); return; }
+      const timer = setTimeout(() => { worker.terminate(); reject(new Error('This workbook took too long to read. Try the smaller two-sheet file.')); }, 60000);
+      const finish = () => { clearTimeout(timer); worker.terminate(); };
+      worker.onmessage = event => { finish(); event.data.error ? reject(new Error(event.data.error)) : resolve(event.data); };
+      worker.onerror = event => { event.preventDefault(); finish(); reject(new Error('The Excel reader could not load. Reload the page and try again.')); };
+      worker.postMessage(message, transfers);
+    });
+  }
+  async function readExcel(file) {
+    if (!file || ['reading', 'publishing', 'waiting'].includes(importState.phase)) return;
+    importState = { phase: 'reading', data: null, error: '', filename: file.name, baseRevision: publishedRevision, commitUrl: '', startedAt: 0 };
+    render();
+    try {
+      if (!/\.(xlsx|xls)$/i.test(file.name)) throw new Error('Choose an Excel workbook ending in .xlsx or .xls.');
+      if (!file.size || file.size > 50 * 1024 * 1024) throw new Error('Choose a non-empty Excel file smaller than 50 MB.');
+      const buffer = await file.arrayBuffer();
+      const result = await runWorkbookWorker({ buffer, filename: file.name }, [buffer]);
+      importState.data = result.data; importState.phase = 'preview'; importState.baseRevision = publishedRevision;
+    } catch (error) { importState.phase = 'idle'; importState.error = error.message; }
+    if (route === 'import') render();
+  }
+  async function publishExcel(form) {
+    if (importState.phase !== 'preview' || !importState.data) return;
+    const field = form.querySelector('#publishing-token');
+    let token = field.value.trim(); field.value = '';
+    if (!token) return;
+    importState.phase = 'publishing'; importState.error = ''; render();
+    try {
+      importState.data.publishedAt = new Date().toISOString();
+      const result = await window.LANPublisher.publish(importState.data, token, importState.baseRevision);
+      importState.phase = 'waiting'; importState.commitUrl = result.url; importState.startedAt = Date.now();
+      toast('Workbook saved. Waiting for Vercel to publish the update.');
+    } catch (error) { importState.phase = 'preview'; importState.error = error.message; }
+    finally { token = ''; }
+    if (route === 'import') render();
+    checkPublishedUpdate();
+  }
+  async function checkPublishedUpdate() {
+    if (document.hidden || checkingUpdate || importState.phase === 'publishing' || !/^https?:$/.test(location.protocol)) return;
+    checkingUpdate = true;
+    try {
+      const response = await fetch('assets/data.js?update=' + Date.now(), { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+      if (!response.ok) return;
+      const latest = W.deserialize(await response.text()), revision = W.revision(latest);
+      const arrived = importState.phase === 'waiting' && latest.publishedAt === importState.data?.publishedAt;
+      if (revision !== publishedRevision || latest.publishedAt !== window.LAN_DATA.publishedAt || arrived) {
+        publishedRevision = revision; window.LAN_DATA = latest; data = structuredClone(latest); duelEntries = data.duels;
+        windowSize = 0; matchMap = ''; matchPage = 0; compareA = ''; compareB = ''; duelA = ''; duelB = '';
+        if (arrived) importState.phase = 'live';
+        else if (importState.phase === 'preview') importState = { phase: 'idle', data: null, error: 'The shared dataset just updated. Choose your workbook again to review it against the latest version.' };
+        render(); toast('Shared statistics updated for the lobby.');
+      } else if (route === 'import' && importState.phase === 'waiting') render();
+    } catch { /* Keep the current statistics available while offline or during deployment. */ }
+    finally { checkingUpdate = false; }
   }
   function morePage() { return heading('The rest of the lobby.', 'There’s always more to the game.') + '<div class="more-grid">' + links.slice(4).map(([id, title, ico]) => '<a class="more-link" href="#' + id + '">' + icon(ico) + '<span>' + title + '</span></a>').join('') + '</div><div style="height:22px"></div><button class="btn" data-action="methodology">' + icon('info') + 'How statistics work</button>'; }
   function render() {
     hideChartTooltip();
     const hash = location.hash.slice(1).split('/'); route = hash[0] || 'home';
-    if (route === 'import') { history.replaceState(null, '', location.pathname + location.search + '#home'); route = 'home'; }
     try { routeId = decodeURIComponent(hash.slice(1).join('/')); } catch { routeId = ''; }
     refresh(); navigation();
-    const pages = { home, players: playersPage, player: playerPage, matches: matchesPage, match: matchPageView, leaderboard: leaderboardPage, rivalries: rivalryPage, analytics: analyticsPage, map: mapPage, records: recordsPage, duels: duelsPage, more: morePage };
+    const pages = { home, players: playersPage, player: playerPage, matches: matchesPage, match: matchPageView, leaderboard: leaderboardPage, rivalries: rivalryPage, analytics: analyticsPage, map: mapPage, records: recordsPage, duels: duelsPage, more: morePage, import: importPage };
     document.getElementById('main').innerHTML = (pages[route] || (() => heading('Page not found', 'Find your way back to the lobby.') + btn('Back to overview', '#home')))();
     document.title = (route === 'player' && getPlayer(routeId) ? displayName(getPlayer(routeId)) : route === 'home' ? 'Every Match Counts' : route.charAt(0).toUpperCase() + route.slice(1)) + ' — LAN League';
     const key = route + '/' + routeId;
@@ -299,10 +375,20 @@
     else if (action === 'edit-profile') profileEditor(el.dataset.id);
     else if (action === 'prev-page') { matchPage = Math.max(0, matchPage - 1); render(); }
     else if (action === 'next-page') { matchPage++; render(); }
+    else if (action === 'new-import') { importState = { phase: 'idle', data: null, error: '' }; render(); }
+    else if (action === 'download-template') {
+      el.disabled = true;
+      try {
+        const result = await runWorkbookWorker({ action: 'template', names: allRoster.map(p => p.name).sort((a, b) => a.localeCompare(b)) });
+        download('LAN Website Template.xlsx', new Blob([result.buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      } catch (error) { toast(error.message); }
+      finally { el.disabled = false; }
+    }
   });
   document.addEventListener('change', event => {
     const el = event.target;
     if (el.id === 'window-filter') { windowSize = Number(el.value); matchPage = 0; render(); }
+    else if (el.id === 'excel-file') readExcel(el.files[0]);
     else if (el.id === 'ranking-metric') { metric = el.value; render(); }
     else if (el.id === 'ranking-minimum') { minMatches = Number(el.value); render(); }
     else if (el.id === 'match-map') { matchMap = el.value; matchPage = 0; render(); }
@@ -314,6 +400,7 @@
     if (event.target.id === 'player-search') { playerQuery = event.target.value; const list = roster.filter(p => (p.name + ' ' + displayName(p)).toLowerCase().includes(playerQuery.toLowerCase())); document.getElementById('player-grid').innerHTML = playerCards(list); document.querySelector('.filter-count').textContent = list.length + ' players · ordered by mean HLTV rating'; }
   });
   document.addEventListener('submit', async event => {
+    if (event.target.id === 'publish-form') { event.preventDefault(); publishExcel(event.target); return; }
     if (event.target.id === 'top-search') { event.preventDefault(); playerQuery = new FormData(event.target).get('q') || ''; if (route === 'players') render(); else location.hash = '#players'; }
     if (event.target.id === 'profile-form') {
       event.preventDefault(); const id = event.target.dataset.id, file = document.getElementById('profile-avatar').files[0];
@@ -324,6 +411,15 @@
       }
       try { const updated = { ...profiles, [id]: entry }; localStorage.setItem(PROFILES, JSON.stringify(updated)); profiles = updated; dialog.close(); render(); toast('Profile saved in this browser.'); } catch { toast('Your browser could not save this profile.'); }
     }
+  });
+  document.addEventListener('dragover', event => { const zone = event.target.closest?.('#excel-dropzone'); if (zone) { event.preventDefault(); zone.classList.add('drag-over'); } });
+  document.addEventListener('dragleave', event => { const zone = event.target.closest?.('#excel-dropzone'); if (zone && !zone.contains(event.relatedTarget)) zone.classList.remove('drag-over'); });
+  document.addEventListener('drop', event => {
+    const zone = event.target.closest?.('#excel-dropzone');
+    if (!zone) return;
+    event.preventDefault(); zone.classList.remove('drag-over');
+    if (event.dataTransfer.files.length !== 1) { toast('Choose one Excel workbook at a time.'); return; }
+    readExcel(event.dataTransfer.files[0]);
   });
   document.addEventListener('pointerover', event => { const point = event.target.closest?.('.chart-point'); if (point) showChartTooltip(point); });
   document.addEventListener('pointerout', event => { if (event.target.closest?.('.chart-point') && !event.relatedTarget?.closest?.('.chart-point')) hideChartTooltip(); });
@@ -336,4 +432,7 @@
   window.addEventListener('hashchange', () => { render(); window.scrollTo({ top: 0, behavior: 'instant' }); document.getElementById('main').focus({ preventScroll: true }); });
   dialog.addEventListener('click', event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close(); } });
   render();
+  setInterval(checkPublishedUpdate, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkPublishedUpdate(); });
+  checkPublishedUpdate();
 })();

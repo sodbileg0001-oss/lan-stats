@@ -5,3 +5,7 @@ The icons in `assets/map-icons/` come from [MurkyYT/cs2-map-icons](https://githu
 Included source files: `images/de_mirage.png`, `images/de_inferno.png`, `images/de_ancient.png`, `images/de_dust2.png`, `images/de_anubis.png`, and `images/de_nuke.png`.
 
 The upstream repository states that the map icons are property of Valve Corporation. The original PNG files are included without modification. They are displayed locally so the website does not depend on requests to GitHub at runtime.
+
+# SheetJS
+
+Excel parsing and template generation use the vendored SheetJS Community Edition library in `vendor/xlsx.full.min.js`. Its Apache 2.0 license is included in `vendor/LICENSE.sheetjs` and distributed with the site.

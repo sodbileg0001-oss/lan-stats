@@ -319,3 +319,54 @@ dialog::backdrop { background: #050910b8; }
 @media (prefers-reduced-motion: reduce) {
   *, *:before, *:after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Excel publishing follows the same dark, readable surfaces as the stats. */
+.import-page { max-width: 1120px; min-width: 0; }
+.import-intro .notice { margin-bottom: 14px; }
+.import-current { display: flex; align-items: center; gap: 10px; margin: 0 0 22px; color: var(--muted); font-size: 13px; }
+.import-current strong { color: var(--text); }
+.excel-drop { padding: 36px 24px; text-align: center; border: 2px dashed #47638a; background: linear-gradient(140deg, #172c47, #141f2e 70%); margin-bottom: 24px; }
+.excel-drop.drag-over, .excel-drop:focus-within { border-color: #8cbfff; box-shadow: 0 0 0 4px #347df429; }
+.import-symbol { display: grid; place-items: center; width: 58px; height: 58px; margin: 0 auto 18px; background: #244572; border: 1px solid #40649a; border-radius: 15px; color: #b8d9ff; }
+.import-symbol .icon { width: 27px; height: 27px; }
+.excel-drop h2, .import-result h2 { font-size: 24px; line-height: 1.25; }
+.excel-drop p { font-size: 14px; color: var(--muted); margin: 12px auto 22px; line-height: 1.8; }
+.excel-drop small { display: block; font-size: 12px; color: var(--muted); margin-top: 15px; }
+.excel-drop .btn { cursor: pointer; }
+.excel-drop .disabled, button:disabled { opacity: .55; cursor: wait; }
+.import-error, .import-warning { padding: 17px 19px; border: 1px solid #9b5263; border-radius: 10px; background: #452332; color: #ffdce3; margin-bottom: 22px; font-size: 14px; line-height: 1.7; }
+.import-error { display: flex; align-items: flex-start; gap: 12px; }
+.import-error .icon { flex-shrink: 0; margin-top: 3px; }
+.import-error p { overflow-wrap: anywhere; }
+.import-filename { overflow-wrap: anywhere; }
+.import-details { border: 1px solid var(--border); background: var(--panel); border-radius: 10px; margin: 0 0 18px; overflow: hidden; }
+.import-details summary { padding: 17px 20px; cursor: pointer; color: #d8e8ff; font-size: 14px; }
+.import-details summary:focus-visible { outline-offset: -3px; }
+.import-details ul { padding: 0 25px 20px 40px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.import-match-preview { max-height: 330px; }
+.import-match-preview table { min-width: 430px; }
+.import-publish { display: grid; gap: 18px; padding-top: 6px; }
+.import-publish p { font-size: 14px; color: var(--muted); line-height: 1.8; }
+.import-publish .field label { font-size: 14px; color: var(--text); margin-bottom: 9px; }
+.import-publish .text-input { font-size: 15px; padding: 13px 14px; }
+.import-publish #publishing-help { font-size: 13px; }
+.import-publish #publishing-help a { display: inline-flex; gap: 6px; align-items: center; color: #a5ceff; text-decoration: underline; text-underline-offset: 3px; }
+.import-publish .btn { justify-self: start; }
+.import-result { padding: 34px 25px; text-align: center; margin-bottom: 25px; }
+.import-result>p { color: var(--muted); font-size: 14px; line-height: 1.8; max-width: 670px; margin: 14px auto; }
+.import-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin: 24px 0; }
+.import-help { border-top: 1px solid var(--border); padding: 26px 0; margin-top: 26px; }
+.import-help h2 { font-size: 20px; margin-bottom: 18px; }
+.import-help-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+.import-help-grid strong { color: #b8d9ff; font-size: 14px; }
+.import-help-grid p { color: var(--muted); font-size: 13px; line-height: 1.8; margin-top: 7px; }
+@media (max-width: 760px) {
+  .import-help-grid { grid-template-columns: 1fr; gap: 20px; }
+  .excel-drop { padding: 28px 18px; }
+  .excel-drop h2, .import-result h2 { font-size: 22px; }
+  .import-current { font-size: 12px; }
+  .import-actions { flex-direction: column; }
+  .import-publish .btn { justify-self: stretch; }
+  .import-page .section-title { align-items: flex-start; gap: 12px; }
+  .import-page .section-title>div { min-width: 0; }
+}
